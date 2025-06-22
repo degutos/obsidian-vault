@@ -1699,18 +1699,568 @@ red-7d56954959-sw9bt   1/1     Running   0          16s   172.17.0.7   controlpl
 
 
 
+### Resources Limit CPU and Memory
+
+
+
+Given a pod Rabbit 
+
+```sh
+➜  kubectl describe po rabbit
+Name:             rabbit
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             controlplane/192.168.58.141
+Start Time:       Sat, 21 Jun 2025 10:41:32 +0000
+Labels:           <none>
+Annotations:      <none>
+Status:           Running
+IP:               10.22.0.9
+IPs:
+  IP:  10.22.0.9
+Containers:
+  cpu-stress:
+    Container ID:  containerd://36e24b05920be99cf43d9eca9884dbd2eb9691303e5db737aadf0de8e2edd2dc
+    Image:         ubuntu
+    Image ID:      docker.io/library/ubuntu@sha256:b59d21599a2b151e23eea5f6602f4af4d7d31c4e236d22bf0b62b86d2e386b8f
+    Port:          <none>
+    Host Port:     <none>
+    Args:
+      sleep
+      1000
+    State:          Running
+      Started:      Sat, 21 Jun 2025 10:41:36 +0000
+    Ready:          True
+    Restart Count:  0
+    Limits:
+      cpu:  1
+    Requests:
+      cpu:        500m
+    Environment:  <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-5bxhg (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-5bxhg:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  33s   default-scheduler  Successfully assigned default/rabbit to controlplane
+  Normal  Pulling    33s   kubelet            Pulling image "ubuntu"
+  Normal  Pulled     31s   kubelet            Successfully pulled image "ubuntu" in 1.798s (1.798s including waiting). Image size: 29724744 bytes.
+  Normal  Created    31s   kubelet            Created container: cpu-stress
+  Normal  Started    30s   kubelet            Started container cpu-stress
+
+```
+
+
+
+> [!Important] 
+> > Notice the current limits and Requests
+
+
+```yaml
+   Limits:
+      cpu:  1
+    Requests:
+      cpu:        500m
+```
+
+
+As we see this pod has limit of 1 cpu and Request minimum of 500m. So 500m cpu is = to 0.5 cpu
+
+
+Lets now delete the pod
+
+```sh
+➜  kubectl delete po rabbit
+pod "rabbit" deleted
+```
+
+
+#### Crashloopbackoff
+
+
+
+```sh
+➜  kubectl get pods
+NAME       READY   STATUS             RESTARTS      AGE
+elephant   0/1     CrashLoopBackOff   1 (12s ago)   14s
+```
+
+
+
+```sh
+➜  kubectl describe po elephant
+Name:             elephant
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             controlplane/192.168.58.141
+Start Time:       Sat, 21 Jun 2025 10:48:47 +0000
+Labels:           <none>
+Annotations:      <none>
+Status:           Running
+IP:               10.22.0.10
+IPs:
+  IP:  10.22.0.10
+Containers:
+  mem-stress:
+    Container ID:  containerd://2ff291109ed7f1a9e44474825f3dffb943d40edbff84ac38cc3e2c4fffa4e159
+    Image:         polinux/stress
+    Image ID:      docker.io/polinux/stress@sha256:b6144f84f9c15dac80deb48d3a646b55c7043ab1d83ea0a697c09097aaad21aa
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      stress
+    Args:
+      --vm
+      1
+      --vm-bytes
+      15M
+      --vm-hang
+      1
+    State:          Waiting
+      Reason:       CrashLoopBackOff
+    Last State:     Terminated
+      Reason:       OOMKilled
+      Exit Code:    1
+      Started:      Sat, 21 Jun 2025 10:49:07 +0000
+      Finished:     Sat, 21 Jun 2025 10:49:07 +0000
+    Ready:          False
+    Restart Count:  2
+    Limits:
+      memory:  10Mi
+    Requests:
+      memory:     5Mi
+    Environment:  <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-4mrht (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-4mrht:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    ConfigMapOptional:       <nil>
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age                From               Message
+  ----     ------     ----               ----               -------
+  Normal   Scheduled  35s                default-scheduler  Successfully assigned default/elephant to controlplane
+  Normal   Pulled     34s                kubelet            Successfully pulled image "polinux/stress" in 649ms (649ms including waiting). Image size: 4041495 bytes.
+  Normal   Pulled     33s                kubelet            Successfully pulled image "polinux/stress" in 151ms (151ms including waiting). Image size: 4041495 bytes.
+  Normal   Pulling    16s (x3 over 34s)  kubelet            Pulling image "polinux/stress"
+  Normal   Created    15s (x3 over 34s)  kubelet            Created container: mem-stress
+  Normal   Started    15s (x3 over 34s)  kubelet            Started container mem-stress
+  Normal   Pulled     15s                kubelet            Successfully pulled image "polinux/stress" in 163ms (163ms including waiting). Image size: 4041495 bytes.
+  Warning  BackOff    2s (x4 over 32s)   kubelet            Back-off restarting failed container mem-stress in pod elephant_default(36c3cb8f-6a72-4c52-a51c-efb3e2dbe43a)
+```
 
 
 
 
+Lets increase limit to 20Mi
+
+```sh
+   resources:
+      limits:
+        memory: 20Mi
+```
 
 
 
+with kubectl edit
+
+```sh
+➜  kubectl edit pod elephant 
+error: pods "elephant" is invalid
+A copy of your changes has been stored to "/tmp/kubectl-edit-2914857219.yaml"
+error: Edit cancelled, no valid changes were saved.
+```
+
+- Notice that we can change a limit in memory during the pod execution, so we need to save in a temp file delete the pod and run apply again 
+
+
+```sh
+$ kubectl delete po elephant 
+pod "elephant" deleted
+
+ ➜  kubectl apply -f /tmp/kubectl-edit-2914857219.yaml
+pod/elephant created
 
 
 
+ ➜  kubectl get pods
+NAME       READY   STATUS    RESTARTS   AGE
+elephant   1/1     Running   0          6s
+
+```
 
 
+### DaemonSets
+
+
+```sh
+➜  kubectl get daemonsets --all-namespaces
+NAMESPACE      NAME              DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+kube-flannel   kube-flannel-ds   1         1         1       1            1           <none>                   5m58s
+kube-system    kube-proxy        1         1         1       1            1           kubernetes.io/os=linux   5m59s
+```
+
+
+
+```sh
+➜  kubectl describe ds kube-proxy -n kube-system
+Name:           kube-proxy
+Selector:       k8s-app=kube-proxy
+Node-Selector:  kubernetes.io/os=linux
+Labels:         k8s-app=kube-proxy
+Annotations:    deprecated.daemonset.template.generation: 1
+Desired Number of Nodes Scheduled: 1
+Current Number of Nodes Scheduled: 1
+Number of Nodes Scheduled with Up-to-date Pods: 1
+Number of Nodes Scheduled with Available Pods: 1
+Number of Nodes Misscheduled: 0
+Pods Status:  1 Running / 0 Waiting / 0 Succeeded / 0 Failed
+Pod Template:
+  Labels:           k8s-app=kube-proxy
+  Service Account:  kube-proxy
+  Containers:
+   kube-proxy:
+    Image:      registry.k8s.io/kube-proxy:v1.32.0
+    Port:       <none>
+    Host Port:  <none>
+    Command:
+      /usr/local/bin/kube-proxy
+      --config=/var/lib/kube-proxy/config.conf
+      --hostname-override=$(NODE_NAME)
+    Environment:
+      NODE_NAME:   (v1:spec.nodeName)
+    Mounts:
+      /lib/modules from lib-modules (ro)
+      /run/xtables.lock from xtables-lock (rw)
+      /var/lib/kube-proxy from kube-proxy (rw)
+  Volumes:
+   kube-proxy:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      kube-proxy
+    Optional:  false
+   xtables-lock:
+    Type:          HostPath (bare host directory volume)
+    Path:          /run/xtables.lock
+    HostPathType:  FileOrCreate
+   lib-modules:
+    Type:               HostPath (bare host directory volume)
+    Path:               /lib/modules
+    HostPathType:       
+  Priority Class Name:  system-node-critical
+  Node-Selectors:       kubernetes.io/os=linux
+  Tolerations:          op=Exists
+Events:
+  Type    Reason            Age    From                  Message
+  ----    ------            ----   ----                  -------
+  Normal  SuccessfulCreate  8m23s  daemonset-controller  Created pod: kube-proxy-llcdx
+
+```
+
+
+- We can notice that this pod is schedule to run in just one node 
+
+
+- Lets now describe DaemonSet kube-flannel-ds
+
+
+```sh
+kubectl describe ds -n kube-flannel kube-flannel-ds
+Name:           kube-flannel-ds
+Selector:       app=flannel,k8s-app=flannel
+Node-Selector:  <none>
+Labels:         app=flannel
+                k8s-app=flannel
+                tier=node
+Annotations:    deprecated.daemonset.template.generation: 1
+Desired Number of Nodes Scheduled: 1
+Current Number of Nodes Scheduled: 1
+Number of Nodes Scheduled with Up-to-date Pods: 1
+Number of Nodes Scheduled with Available Pods: 1
+Number of Nodes Misscheduled: 0
+Pods Status:  1 Running / 0 Waiting / 0 Succeeded / 0 Failed
+Pod Template:
+  Labels:           app=flannel
+                    k8s-app=flannel
+                    tier=node
+  Service Account:  flannel
+  Init Containers:
+   install-cni-plugin:
+    Image:      docker.io/flannel/flannel-cni-plugin:v1.2.0
+    Port:       <none>
+    Host Port:  <none>
+    Command:
+      cp
+    Args:
+      -f
+      /flannel
+      /opt/cni/bin/flannel
+    Environment:  <none>
+    Mounts:
+      /opt/cni/bin from cni-plugin (rw)
+   install-cni:
+    Image:      docker.io/flannel/flannel:v0.23.0
+    Port:       <none>
+    Host Port:  <none>
+    Command:
+      cp
+    Args:
+      -f
+      /etc/kube-flannel/cni-conf.json
+      /etc/cni/net.d/10-flannel.conflist
+    Environment:  <none>
+    Mounts:
+      /etc/cni/net.d from cni (rw)
+      /etc/kube-flannel/ from flannel-cfg (rw)
+  Containers:
+   kube-flannel:
+    Image:      docker.io/flannel/flannel:v0.23.0
+    Port:       <none>
+    Host Port:  <none>
+    Command:
+      /opt/bin/flanneld
+    Args:
+      --ip-masq
+      --kube-subnet-mgr
+      --iface=eth0
+    Requests:
+      cpu:     100m
+      memory:  50Mi
+    Environment:
+      POD_NAME:            (v1:metadata.name)
+      POD_NAMESPACE:       (v1:metadata.namespace)
+      EVENT_QUEUE_DEPTH:  5000
+    Mounts:
+      /etc/kube-flannel/ from flannel-cfg (rw)
+      /run/flannel from run (rw)
+      /run/xtables.lock from xtables-lock (rw)
+  Volumes:
+   run:
+    Type:          HostPath (bare host directory volume)
+    Path:          /run/flannel
+    HostPathType:  
+   cni-plugin:
+    Type:          HostPath (bare host directory volume)
+    Path:          /opt/cni/bin
+    HostPathType:  
+   cni:
+    Type:          HostPath (bare host directory volume)
+    Path:          /etc/cni/net.d
+    HostPathType:  
+   flannel-cfg:
+    Type:      ConfigMap (a volume populated by a ConfigMap)
+    Name:      kube-flannel-cfg
+    Optional:  false
+   xtables-lock:
+    Type:               HostPath (bare host directory volume)
+    Path:               /run/xtables.lock
+    HostPathType:       FileOrCreate
+  Priority Class Name:  system-node-critical
+  Node-Selectors:       <none>
+  Tolerations:          :NoSchedule op=Exists
+Events:
+  Type    Reason            Age   From                  Message
+  ----    ------            ----  ----                  -------
+  Normal  SuccessfulCreate  10m   daemonset-controller  Created pod: kube-flannel-ds-ltvml
+
+```
+
+
+
+- Notice above that the Image this DameonSet uses is `docker.io/flannel/flannel:v0.23.0`
+
+- Lets now create a new DamonSet 
+
+```sh
+➜  cat ds.yaml 
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: elasticsearch
+  namespace: kube-system
+  labels:
+    name: fluentd-elasticsearch
+spec:
+  selector:
+    matchLabels:
+      name: fluentd-elasticsearch
+  template:
+    metadata:
+      labels:
+        name: fluentd-elasticsearch
+    spec:
+      containers:
+      - name: fluentd-elasticsearch
+        image: registry.k8s.io/fluentd-elasticsearch:1.20
+```
+
+
+```sh
+➜  kubectl apply -f ds.yaml 
+daemonset.apps/elasticsearch created
+```
+
+
+### Static Pods
+
+
+```sh
+➜  kubectl get pods -A
+NAMESPACE      NAME                                   READY   STATUS    RESTARTS   AGE
+kube-flannel   kube-flannel-ds-fn922                  1/1     Running   0          3m36s
+kube-flannel   kube-flannel-ds-zxq6s                  1/1     Running   0          3m15s
+kube-system    coredns-7484cd47db-qs9jp               1/1     Running   0          3m36s
+kube-system    coredns-7484cd47db-th646               1/1     Running   0          3m36s
+kube-system    etcd-controlplane                      1/1     Running   0          3m42s
+kube-system    kube-apiserver-controlplane            1/1     Running   0          3m42s
+kube-system    kube-controller-manager-controlplane   1/1     Running   0          3m42s
+kube-system    kube-proxy-lwhlx                       1/1     Running   0          3m15s
+kube-system    kube-proxy-m6d9p                       1/1     Running   0          3m36s
+kube-system    kube-scheduler-controlplane            1/1     Running   0          3m42s
+```
+
+
+Those pods with -nodeName are static pods. Coredns and kube-proxy is not a static pod.
+
+
+```sh
+➜  ps -aux | grep kubelet
+bad data in /proc/uptime
+root        3470  0.0  0.4 1457364 268696 ?      Ssl  05:48   0:19 kube-apiserver --advertise-address=192.168.242.137 --allow-privileged=true --authorization-mode=Node,RBAC --client-ca-file=/etc/kubernetes/pki/ca.crt --enable-admission-plugins=NodeRestriction --enable-bootstrap-token-auth=true --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key --etcd-servers=https://127.0.0.1:2379 --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key --requestheader-allowed-names=front-proxy-client --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt --requestheader-extra-headers-prefix=X-Remote-Extra- --requestheader-group-headers=X-Remote-Group --requestheader-username-headers=X-Remote-User --secure-port=6443 --service-account-issuer=https://kubernetes.default.svc.cluster.local --service-account-key-file=/etc/kubernetes/pki/sa.pub --service-account-signing-key-file=/etc/kubernetes/pki/sa.key --service-cluster-ip-range=172.20.0.0/16 --tls-cert-file=/etc/kubernetes/pki/apiserver.crt --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+root        3934  0.0  0.1 2931756 97332 ?       Ssl  05:49   0:10 /usr/bin/kubelet --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf --config=/var/lib/kubelet/config.yaml --container-runtime-endpoint=unix:///var/run/containerd/containerd.sock --pod-infra-container-image=registry.k8s.io/pause:3.10
+```
+
+
+Check for  `--config=/var/lib/kubelet/config.yaml`
+
+
+```sh
+➜  grep staticPodPath: /var/lib/kubelet/config.yaml
+staticPodPath: /etc/kubernetes/manifests
+```
+
+
+As we see the path is `/etc/kubernetes/manifests`
+
+
+```sh
+controlplane /etc/kubernetes/manifests ➜  ls -lh
+total 16K
+-rw------- 1 root root 2.6K Jun 22 05:48 etcd.yaml
+-rw------- 1 root root 3.9K Jun 22 05:48 kube-apiserver.yaml
+-rw------- 1 root root 3.4K Jun 22 05:48 kube-controller-manager.yaml
+-rw------- 1 root root 1.7K Jun 22 05:48 kube-scheduler.yaml
+```
+
+
+These are the files within the `/etc/kubernetes/manifests`
+
+
+#### Create a new static pod called static-busybox
+
+```sh
+controlplane /etc/kubernetes/manifests ➜  kubectl run --restart=Never --image=busybox static-busybox --dry-run=client -o yaml --command -- sleep 1000 > static-busybox.yaml
+```
+
+
+```sh
+controlplane /etc/kubernetes/manifests ➜  cat static-busybox.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: static-busybox
+  name: static-busybox
+spec:
+  containers:
+  - command:
+    - sleep
+    - "1000"
+    image: busybox
+    name: static-busybox
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Never
+status: {}
+```
+
+
+- then notice that the Static pod is now running automatically
+
+
+```sh
+controlplane /etc/kubernetes/manifests ➜  kubectl get pods -n default
+NAME                          READY   STATUS    RESTARTS   AGE
+static-busybox-controlplane   1/1     Running   0          104s
+```
+
+
+- Lets now change the image running in the static pod
+`
+```sh
+controlplane /etc/kubernetes/manifests ➜  kubectl describe po static-busybox-controlplane -n default | grep -i image:
+    Image:         busybox:1.28.4
+
+controlplane /etc/kubernetes/manifests ✖ kubectl get pods -n default 
+NAME                          READY   STATUS    RESTARTS   AGE
+static-busybox-controlplane   1/1     Running   0          15s
+```
+
+
+## Priority Classes - `New`
+
+
+
+Sometimes the kubernetes controlplane run as a pod in kubernets clusters. The kube controlplane components need to have priority to run in the nodes. Here are sample example of Priority:
+
+
+- Kubernetes components
+- Databases
+- Critical Applications
+- Jobs
+
+
+High priority run first with guaranteed resource. We can set priority between -2.147.438.648 to 1.000.000.000 being 0 no priority and the default.
+
+There are a separated system kubernetes components that can go beyond 1.000.000.000 and in this case the System workload can go to 2.000.000.000.
+
+```sh
+$ kubectl get priorityclass
+```
 
 
 
