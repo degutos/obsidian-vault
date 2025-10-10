@@ -2263,9 +2263,800 @@ $ kubectl get priorityclass
 ```
 
 
+```sh
+root@controlplane ~ ➜  kubectl get priorityclass
+NAME                      VALUE        GLOBAL-DEFAULT   AGE   PREEMPTIONPOLICY
+system-cluster-critical   2000000000   false            16m   PreemptLowerPriority
+system-node-critical      2000001000   false            16m   PreemptLowerPriority
+```
+
+
+
+- Lets create a priority class named high-priority with value of 100.000 
+
+```sh
+➜  kubectl create priorityclass high-priority --value=100000 
+priorityclass.scheduling.k8s.io/high-priority created
+```
+
+
+```sh
+~ ➜  kubectl get pc
+NAME                      VALUE        GLOBAL-DEFAULT   AGE   PREEMPTIONPOLICY
+high-priority             100000       false            47s   PreemptLowerPriority
+system-cluster-critical   2000000000   false            19m   PreemptLowerPriority
+system-node-critical      2000001000   false            19m   PreemptLowerPriority
+```
+
+
+
+- Lets now create another priority class called low-priority with value of 1000
+
+```sh
+➜  kubectl create pc low-priority --value=1000 
+priorityclass.scheduling.k8s.io/low-priority created
+```
+
+
+```sh
+➜  kubectl get pc
+NAME                      VALUE        GLOBAL-DEFAULT   AGE     PREEMPTIONPOLICY
+high-priority             100000       false            2m18s   PreemptLowerPriority
+low-priority              1000         false            41s     PreemptLowerPriority
+system-cluster-critical   2000000000   false            20m     PreemptLowerPriority
+system-node-critical      2000001000   false            20m     PreemptLowerPriority
+```
+
+
+#### Creating a pod with low-priority
+
+
+```sh
+root@controlplane ~ ➜  kubectl run low-prio-pod --image=nginx --dry-run=client -o yaml > low.yaml
+
+root@controlplane ~ ➜  cat low.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: low-prio-pod
+  name: low-prio-pod
+spec:
+  priorityClassName: low-priority
+  containers:
+  - image: nginx
+    name: low-prio-pod
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}
+
+root@controlplane ~ ➜  kubectl apply -f low.yaml 
+pod/low-prio-pod created
+
+root@controlplane ~ ➜  kubectl get pods 
+NAME           READY   STATUS    RESTARTS   AGE
+low-prio-pod   1/1     Running   0          15s
+```
+
+
+#### Creating a pod with high-priority
+
+
+```sh
+root@controlplane ~ ➜  kubectl run high-prio-pod --image=nginx --dry-run=client -o yaml > high.yaml
+
+root@controlplane ~ ➜  vi high.yaml 
+
+root@controlplane ~ ➜  cat high.yaml 
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: high-prio-pod
+  name: high-prio-pod
+spec:
+  priorityClassName: high-priority
+  containers:
+  - image: nginx
+    name: high-prio-pod
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}
+
+root@controlplane ~ ➜  kubectl apply -f high.yaml 
+pod/high-prio-pod created
+
+root@controlplane ~ ➜  kubectl get pods 
+NAME            READY   STATUS    RESTARTS   AGE
+high-prio-pod   1/1     Running   0          7s
+low-prio-pod    1/1     Running   0          4m52s
+```
+
+
+```sh
+root@controlplane ~ ➜  kubectl get pods -o custom-columns="NAME:.metadata.name,PRIORITY:.spec.priorityClassName"
+NAME            PRIORITY
+high-prio-pod   high-priority
+low-prio-pod    low-priority
+```
+
+
+#### Pod with critical-app starving for resources
+
+
+```sh
+➜  kubectl get pods
+NAME            READY   STATUS    RESTARTS   AGE
+critical-app    0/1     Pending   0          24s
+high-prio-pod   1/1     Running   0          5m29s
+low-app         1/1     Running   0          24s
+low-prio-pod    1/1     Running   0          10m
+```
+
+
+- Lets describe and see the events for critical-app
+
+
+```sh
+Events:
+  Type     Reason            Age   From               Message
+  ----     ------            ----  ----               -------
+  Warning  FailedScheduling  102s  default-scheduler  0/1 nodes are available: 1 Insufficient cpu, 1 Insufficient memory. preemption: 0/1 nodes are available: 1 No preemption victims found for incoming pod.
+```
+
+
+- Lets fix adding the pod critical-app to class high-priority
+
+
+```sh
+➜  kubectl get po critical-app -o yaml > critical.yaml
+
+➜  vi critical.yaml 
+
+# lets add this line
+  priorityClassName: high-priority
+
+➜  kubectl apply -f critical.yaml 
+pod/critical-app created
+```
+
+
+
+```sh
+➜  kubectl get pods
+NAME            READY   STATUS    RESTARTS   AGE
+critical-app    1/1     Running   0          108s
+high-prio-pod   1/1     Running   0          13m
+low-prio-pod    1/1     Running   0          18m
+```
+
+
+### Scheduler
+
+
+```sh
+➜  kubectl get pods -n kube-system | grep scheduler
+kube-scheduler-controlplane            1/1     Running   0          6m4s
+```
+
+
+- Lets check the image
+
+```sh
+➜  kubectl describe po kube-scheduler-controlplane -n kube-system | grep -i image:
+    Image:         registry.k8s.io/kube-scheduler:v1.32.0
+```
+
+
+- Lets check all servicesAccount in kube-system
+
+```sh
+➜  kubectl get serviceaccount -n kube-system
+NAME                                          SECRETS   AGE
+attachdetach-controller                       0         9m5s
+bootstrap-signer                              0         9m
+certificate-controller                        0         9m5s
+clusterrole-aggregation-controller            0         9m5s
+coredns                                       0         9m4s
+cronjob-controller                            0         9m1s
+daemon-set-controller                         0         9m4s
+default                                       0         8m59s
+deployment-controller                         0         9m5s
+disruption-controller                         0         9m1s
+endpoint-controller                           0         9m3s
+endpointslice-controller                      0         9m3s
+endpointslicemirroring-controller             0         9m4s
+ephemeral-volume-controller                   0         9m3s
+expand-controller                             0         9m4s
+generic-garbage-collector                     0         9m4s
+horizontal-pod-autoscaler                     0         9m3s
+job-controller                                0         9m5s
+kube-proxy                                    0         9m4s
+legacy-service-account-token-cleaner          0         9m2s
+my-scheduler                                  0         80s
+namespace-controller                          0         9m2s
+node-controller                               0         9m1s
+persistent-volume-binder                      0         9m3s
+pod-garbage-collector                         0         9m5s
+pv-protection-controller                      0         9m
+pvc-protection-controller                     0         9m3s
+replicaset-controller                         0         9m5s
+replication-controller                        0         9m4s
+resourcequota-controller                      0         9m1s
+root-ca-cert-publisher                        0         9m4s
+service-account-controller                    0         9m2s
+statefulset-controller                        0         9m1s
+token-cleaner                                 0         9m2s
+ttl-after-finished-controller                 0         9m
+ttl-controller                                0         9m5s
+validatingadmissionpolicy-status-controller   0         9m2s
+```
+
+
+- Lets now list 
+
+```sh
+➜  kubectl get clusterrolebinding 
+NAME                                                            ROLE                                                                               AGE
+cluster-admin                                                   ClusterRole/cluster-admin                                                          11m
+flannel                                                         ClusterRole/flannel                                                                11m
+kubeadm:cluster-admins                                          ClusterRole/cluster-admin                                                          11m
+kubeadm:get-nodes                                               ClusterRole/kubeadm:get-nodes                                                      11m
+kubeadm:kubelet-bootstrap                                       ClusterRole/system:node-bootstrapper                                               11m
+kubeadm:node-autoapprove-bootstrap                              ClusterRole/system:certificates.k8s.io:certificatesigningrequests:nodeclient       11m
+kubeadm:node-autoapprove-certificate-rotation                   ClusterRole/system:certificates.k8s.io:certificatesigningrequests:selfnodeclient   11m
+kubeadm:node-proxier                                            ClusterRole/system:node-proxier                                                    11m
+my-scheduler-as-kube-scheduler                                  ClusterRole/system:kube-scheduler                                                  3m29s
+my-scheduler-as-volume-scheduler                                ClusterRole/system:volume-scheduler                                                3m29s
+system:basic-user                                               ClusterRole/system:basic-user                                                      11m
+system:controller:attachdetach-controller                       ClusterRole/system:controller:attachdetach-controller                              11m
+system:controller:certificate-controller                        ClusterRole/system:controller:certificate-controller                               11m
+system:controller:clusterrole-aggregation-controller            ClusterRole/system:controller:clusterrole-aggregation-controller                   11m
+system:controller:cronjob-controller                            ClusterRole/system:controller:cronjob-controller                                   11m
+system:controller:daemon-set-controller                         ClusterRole/system:controller:daemon-set-controller                                11m
+system:controller:deployment-controller                         ClusterRole/system:controller:deployment-controller                                11m
+system:controller:disruption-controller                         ClusterRole/system:controller:disruption-controller                                11m
+system:controller:endpoint-controller                           ClusterRole/system:controller:endpoint-controller                                  11m
+system:controller:endpointslice-controller                      ClusterRole/system:controller:endpointslice-controller                             11m
+system:controller:endpointslicemirroring-controller             ClusterRole/system:controller:endpointslicemirroring-controller                    11m
+system:controller:ephemeral-volume-controller                   ClusterRole/system:controller:ephemeral-volume-controller                          11m
+system:controller:expand-controller                             ClusterRole/system:controller:expand-controller                                    11m
+system:controller:generic-garbage-collector                     ClusterRole/system:controller:generic-garbage-collector                            11m
+system:controller:horizontal-pod-autoscaler                     ClusterRole/system:controller:horizontal-pod-autoscaler                            11m
+system:controller:job-controller                                ClusterRole/system:controller:job-controller                                       11m
+system:controller:legacy-service-account-token-cleaner          ClusterRole/system:controller:legacy-service-account-token-cleaner                 11m
+system:controller:namespace-controller                          ClusterRole/system:controller:namespace-controller                                 11m
+system:controller:node-controller                               ClusterRole/system:controller:node-controller                                      11m
+system:controller:persistent-volume-binder                      ClusterRole/system:controller:persistent-volume-binder                             11m
+system:controller:pod-garbage-collector                         ClusterRole/system:controller:pod-garbage-collector                                11m
+system:controller:pv-protection-controller                      ClusterRole/system:controller:pv-protection-controller                             11m
+system:controller:pvc-protection-controller                     ClusterRole/system:controller:pvc-protection-controller                            11m
+system:controller:replicaset-controller                         ClusterRole/system:controller:replicaset-controller                                11m
+system:controller:replication-controller                        ClusterRole/system:controller:replication-controller                               11m
+system:controller:resourcequota-controller                      ClusterRole/system:controller:resourcequota-controller                             11m
+system:controller:root-ca-cert-publisher                        ClusterRole/system:controller:root-ca-cert-publisher                               11m
+system:controller:route-controller                              ClusterRole/system:controller:route-controller                                     11m
+system:controller:service-account-controller                    ClusterRole/system:controller:service-account-controller                           11m
+system:controller:service-controller                            ClusterRole/system:controller:service-controller                                   11m
+system:controller:statefulset-controller                        ClusterRole/system:controller:statefulset-controller                               11m
+system:controller:ttl-after-finished-controller                 ClusterRole/system:controller:ttl-after-finished-controller                        11m
+system:controller:ttl-controller                                ClusterRole/system:controller:ttl-controller                                       11m
+system:controller:validatingadmissionpolicy-status-controller   ClusterRole/system:controller:validatingadmissionpolicy-status-controller          11m
+system:coredns                                                  ClusterRole/system:coredns                                                         11m
+system:discovery                                                ClusterRole/system:discovery                                                       11m
+system:kube-controller-manager                                  ClusterRole/system:kube-controller-manager                                         11m
+system:kube-dns                                                 ClusterRole/system:kube-dns                                                        11m
+system:kube-scheduler                                           ClusterRole/system:kube-scheduler                                                  11m
+system:monitoring                                               ClusterRole/system:monitoring                                                      11m
+system:node                                                     ClusterRole/system:node                                                            11m
+system:node-proxier                                             ClusterRole/system:node-proxier                                                    11m
+system:public-info-viewer                                       ClusterRole/system:public-info-viewer                                              11m
+system:service-account-issuer-discovery                         ClusterRole/system:service-account-issuer-discovery                                11m
+system:volume-scheduler                                         ClusterRole/system:volume-scheduler                                                11m
+```
+
+
+
+## Monitoring and Logging
+
+
+Lets deploy a monitoring in our cluster
+
+```sh
+➜  kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+serviceaccount/metrics-server created
+clusterrole.rbac.authorization.k8s.io/system:aggregated-metrics-reader created
+clusterrole.rbac.authorization.k8s.io/system:metrics-server created
+rolebinding.rbac.authorization.k8s.io/metrics-server-auth-reader created
+clusterrolebinding.rbac.authorization.k8s.io/metrics-server:system:auth-delegator created
+clusterrolebinding.rbac.authorization.k8s.io/system:metrics-server created
+service/metrics-server created
+deployment.apps/metrics-server created
+apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io created
+```
+
+
+
+Lets check the top node command
+
+```sh
+➜  kubectl top node
+NAME           CPU(cores)   CPU(%)   MEMORY(bytes)   MEMORY(%)   
+controlplane   247m         1%       870Mi           1%          
+node01         41m          0%       158Mi           0%   
+```
+
+- As we see controlplane is the node consuming most CPU and also Memory
+
+Lets now check the top pods command
+
+```sh
+➜  kubectl top pods
+NAME       CPU(cores)   MEMORY(bytes)   
+elephant   15m          30Mi            
+lion       1m           16Mi            
+rabbit     110m         250Mi       
+```
+
+
+- As we see rabbit pod is the most consuming Memory and CPU, and the lion the pod consuming less cpu and memory.
+
+
+### Checking logs
+
+```sh
+➜  kubectl get pods
+NAME       READY   STATUS    RESTARTS   AGE
+webapp-1   1/1     Running   0          105s
+webapp-2   2/2     Running   0          10s
+
+controlplane ~ ➜  kubectl logs webapp-2 
+```
+
+
+## Rolling updates
+
+
+```sh
+➜  kubectl get pods
+NAME                        READY   STATUS    RESTARTS   AGE
+frontend-6765b99794-2lxgg   1/1     Running   0          11s
+frontend-6765b99794-j7bgm   1/1     Running   0          11s
+frontend-6765b99794-l2qw2   1/1     Running   0          11s
+frontend-6765b99794-l69fr   1/1     Running   0          11s
+```
+
+
+Interesting looping
+
+```sh
+ ➜  for i in {1..30} ; do echo "Hello World" ; sleep 1 ; done
+```
+
+
+Another interesting looping to test connectivity to the pod
+
+```sh
+➜  cat curl-test.sh 
+for i in {1..35}; do
+   kubectl exec --namespace=kube-public curl -- sh -c 'test=`wget -qO- -T 2  http://webapp-service.default.svc.cluster.local:8080/info 2>&1` && echo "$test OK" || echo "Failed"';
+   echo ""
+done
+```
+
+
+
+Check the deployments and deployment type
+
+```sh
+➜  kubectl get deployments
+NAME       READY   UP-TO-DATE   AVAILABLE   AGE
+frontend   4/4     4            4           14m
+
+➜  kubectl describe deployment frontend | grep -i strategy
+StrategyType:           RollingUpdate
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+```
+
+During a deployment upgrade here we would have Pods restarted one by one 
+
+### Strategy recreate
+
+```sh
+➜  kubectl describe deploy frontend 
+Name:               frontend
+Namespace:          default
+CreationTimestamp:  Fri, 27 Jun 2025 13:22:32 +0000
+Labels:             <none>
+Annotations:        deployment.kubernetes.io/revision: 3
+Selector:           name=webapp
+Replicas:           4 desired | 4 updated | 4 total | 4 available | 0 unavailable
+StrategyType:       Recreate
+MinReadySeconds:    20
+Pod Template:
+  Labels:  name=webapp
+  Containers:
+   simple-webapp:
+    Image:         kodekloud/webapp-color:v3
+    Port:          8080/TCP
+    Host Port:     0/TCP
+    Environment:   <none>
+    Mounts:        <none>
+  Volumes:         <none>
+  Node-Selectors:  <none>
+  Tolerations:     <none>
+Conditions:
+  Type           Status  Reason
+  ----           ------  ------
+  Available      True    MinimumReplicasAvailable
+  Progressing    True    NewReplicaSetAvailable
+OldReplicaSets:  frontend-6765b99794 (0/0 replicas created), frontend-854b57fbbf (0/0 replicas created)
+NewReplicaSet:   frontend-7c594bbd6d (4/4 replicas created)
+Events:
+  Type    Reason             Age    From                   Message
+  ----    ------             ----   ----                   -------
+  Normal  ScalingReplicaSet  25m    deployment-controller  Scaled up replica set frontend-6765b99794 from 0 to 4
+  Normal  ScalingReplicaSet  7m37s  deployment-controller  Scaled up replica set frontend-854b57fbbf from 0 to 1
+  Normal  ScalingReplicaSet  7m37s  deployment-controller  Scaled down replica set frontend-6765b99794 from 4 to 3
+  Normal  ScalingReplicaSet  7m37s  deployment-controller  Scaled up replica set frontend-854b57fbbf from 1 to 2
+  Normal  ScalingReplicaSet  7m15s  deployment-controller  Scaled down replica set frontend-6765b99794 from 3 to 1
+  Normal  ScalingReplicaSet  7m15s  deployment-controller  Scaled up replica set frontend-854b57fbbf from 2 to 4
+  Normal  ScalingReplicaSet  6m50s  deployment-controller  Scaled down replica set frontend-6765b99794 from 1 to 0
+  Normal  ScalingReplicaSet  2m     deployment-controller  Scaled down replica set frontend-854b57fbbf from 4 to 0
+  Normal  ScalingReplicaSet  88s    deployment-controller  Scaled up replica set frontend-7c594bbd6d from 0 to 4
+```
+
+
+
+Notice the last 2 events that it brought down all 4 pods and up all 4 pods at once
+In the other hand the rolling update (first events) it bring down 1 by one and make sure to bring up 1 by one.
+
+
+
+## Commands and arguments
+
+
+```sh
+cat ubuntu-sleeper-2.yaml 
+apiVersion: v1 
+kind: Pod 
+metadata:
+  name: ubuntu-sleeper-2 
+spec:
+  containers:
+  - name: ubuntu
+    image: ubuntu
+    command: ["sleep","5000"]
+```
+
+
+```sh
+➜  kubectl get pods ubuntu-sleeper-2 
+NAME               READY   STATUS    RESTARTS   AGE
+ubuntu-sleeper-2   1/1     Running   0          38s
+```
+
+
+
+Lets now create a pod with command set in different way
+
+```sh
+➜  cat ubuntu-sleeper-3.yaml 
+apiVersion: v1 
+kind: Pod 
+metadata:
+  name: ubuntu-sleeper-3 
+spec:
+  containers:
+  - name: ubuntu
+    image: ubuntu
+    command:
+      - "sleep"
+      - "1200"
+
+controlplane ~ ➜  kubectl get pods ubuntu-sleeper-3 
+NAME               READY   STATUS    RESTARTS   AGE
+ubuntu-sleeper-3   1/1     Running   0          46s
+```
+
+
+```yaml
+FROM python:3.6-alpine
+
+RUN pip install flask
+
+COPY . /opt/
+
+EXPOSE 8080
+
+WORKDIR /opt
+
+ENTRYPOINT ["python", "app.py"]
+```
+
+
+
+## Secrets
+
+
+```sh
+➜  kubectl get secrets
+NAME              TYPE                                  DATA   AGE
+dashboard-token   kubernetes.io/service-account-token   3      25s
+```
+
+
+Lets describe the secrets
+
+```sh
+➜  kubectl describe secrets dashboard-token
+Name:         dashboard-token
+Namespace:    default
+Labels:       <none>
+Annotations:  kubernetes.io/service-account.name: dashboard-sa
+              kubernetes.io/service-account.uid: 7f047342-d25c-4bbf-8ff5-c75739f434c8
+
+Type:  kubernetes.io/service-account-token
+
+Data
+====
+token:      eyJhbGciOiJSUzI1NiIsImtpZCI6IlMyWmNmdHU1WVdWbVA1Y094RVpma01wUUtTR1h4Rm5lWDN3Y3FDWTZWVW8ifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZWZhdWx0Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6ImRhc2hib2FyZC10b2tlbiIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJkYXNoYm9hcmQtc2EiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiI3ZjA0NzM0Mi1kMjVjLTRiYmYtOGZmNS1jNzU3MzlmNDM0YzgiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6ZGVmYXVsdDpkYXNoYm9hcmQtc2EifQ.WfoxTi2_Bw2-EQywPl1Wc7dLb3u7WdNFxF1xYgWQYNSZ26cv9WjK-OjAInD5wIeruVUDabNgK6aSYSYRywKCWhM9D9Gq1f8DQ5k0ai_5m6DsWClD4OVk4wqFQR7JCCxDiqWrTdLH08yID55CAVMKSGlRZyEhOg1TYG7jbtI0DD-fsYu4O756OxJSb14YfMnsIN9RX8NlIuDjhYqiCzukqkr-1um15MxJInbjvLU-o3a7FQac0OHfewVDaUdJJwAquJqTGL_8yXhG7XhoQ755W9kjvc6aHZm1kIOu3Ts38mdp7senxoEiUaUs122G0pcpntiLRsrysp0kvgnDfWAoCw
+ca.crt:     570 bytes
+namespace:  7 bytes
+
+```
+
+
+Notice that above secrets is of type `kubernetes.io/service-account-token`
+
+
+### Application deployed
+
+
+```sh
+➜  kubectl get pods
+NAME         READY   STATUS    RESTARTS   AGE
+mysql        1/1     Running   0          33s
+webapp-pod   1/1     Running   0          33s
+```
+
+
+```sh
+➜  kubectl get svc
+NAME             TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+kubernetes       ClusterIP   10.43.0.1       <none>        443/TCP          9m30s
+sql01            ClusterIP   10.43.142.153   <none>        3306/TCP         74s
+webapp-service   NodePort    10.43.118.10    <none>        8080:30080/TCP   74s
+```
+
+
+Error while accessing application since we have no variables/secrets deployed yet
+
+```sh
+### Failed connecting to the MySQL database.
+
+## Environment Variables: DB_Host=Not Set; DB_Database=Not Set; DB_User=Not Set; DB_Password=Not Set; 2003: Can't connect to MySQL server on 'localhost:3306' (111 Connection refused)
+
+From webapp-pod!
+```
+
+
+Create a new secret named `db-secret` with the data given below.
+
+DB_Host = sql01
+
+DB_User = root
+
+DB_Password = password123
+
+```sh
+➜  echo -n  "password123" | base64
+cGFzc3dvcmQxMjM=
+```
+
+
+```sh
+➜  echo -n  "root" | base64
+cm9vdA==
+```
+
+```sh
+➜  kubectl create secret generic db-secret --from-literal=DB_Host=sql01 --from-literal=DB_User=root --from-literal=DB_Password=password123
+secret/db-secret created
+```
+
+Lets add envFrom to our pod spec:
+
+```sh
+  containers:
+  - envFrom:
+    - secretRef:
+        name: db-secret
+```
+
+
+
+```sh
+➜  kubectl replace --force -f /tmp/kubectl-edit-1613571795.yaml
+pod "webapp-pod" deleted
+pod/webapp-pod replaced
+```
+
+```sh
+➜  kubectl get pods webapp-pod 
+NAME         READY   STATUS    RESTARTS   AGE
+webapp-pod   1/1     Running   0          75s
+```
+
+Now application is working
+
+```sh
+### Successfully connected to the MySQL database.
+
+## Environment Variables: DB_Host=sql01; DB_Database=Not Set; DB_User=root; DB_Password=password123;
+
+From webapp-pod!
+```
 
 
 
 
+
+## Multi container pods
+
+
+```sh
+ ➜  kubectl get pods
+NAME        READY   STATUS              RESTARTS   AGE
+app         0/1     ContainerCreating   0          29s
+fluent-ui   1/1     Running             0          29s
+red         0/3     ContainerCreating   0          15s
+```
+
+
+Notice that we have the pod red with 3 containers but no one is started/running yet.
+
+```sh
+➜  kubectl get pods
+NAME        READY   STATUS    RESTARTS   AGE
+app         1/1     Running   0          2m56s
+blue        2/2     Running   0          84s
+fluent-ui   1/1     Running   0          2m56s
+red         3/3     Running   0          2m42s
+```
+
+
+### Creating a pod with 02 containers
+
+
+Lets create a template with a single container and edit it:
+
+```sh
+➜  kubectl run yellow --image=busybox --dry-run=client -o yaml > pod.yaml
+```
+
+The file edited should be:
+
+```
+```
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    run: yellow
+  name: yellow
+spec:
+  containers:
+  - image: busybox
+    name: lemon 
+    command:
+      - "sleep"
+      - "1000"
+  - image: redis
+    name: gold
+```
+
+
+
+```sh
+➜  kubectl apply -f pod.yaml 
+pod/yellow created
+
+ ➜  kubectl get pod yellow
+NAME     READY   STATUS    RESTARTS   AGE
+yellow   2/2     Running   0          9s
+```
+
+
+Lets get all containers images in the pod yellow:
+
+```sh
+ ➜  kubectl get pods yellow -o jsonpath="{.spec.containers[*].image}"
+busybox redis
+```
+
+
+lets describe this pod with 02 containers
+
+```sh
+ ➜  kubectl describe po yellow 
+Name:             yellow
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             controlplane/192.168.126.139
+Start Time:       Fri, 25 Jul 2025 12:46:16 +0000
+Labels:           run=yellow
+Annotations:      <none>
+Status:           Running
+IP:               172.17.0.13
+IPs:
+  IP:  172.17.0.13
+Containers:
+  lemon:
+    Container ID:  containerd://4c09546d1d07bf490e76794d55933fae9d0bf58a2c58f6342438cd753fff0b55
+    Image:         busybox
+    Image ID:      docker.io/library/busybox@sha256:f85340bf132ae937d2c2a763b8335c9bab35d6e8293f70f606b9c6178d84f42b
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sleep
+      1000
+    State:          Running
+      Started:      Fri, 25 Jul 2025 12:46:18 +0000
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-t7bvg (ro)
+  gold:
+    Container ID:   containerd://8c954a18afa267b1500d9c73a2a7c7b2eacff5d83ba2c300b5f3917adcb15c24
+    Image:          redis
+    Image ID:       docker.io/library/redis@sha256:f957ce918b51f3ac10414244bedd0043c47db44a819f98b9902af1bd9d0afcea
+    Port:           <none>
+    Host Port:      <none>
+    State:          Running
+      Started:      Fri, 25 Jul 2025 12:46:19 +0000
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-t7bvg (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 True 
+  Ready                       True 
+  ContainersReady             True 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-t7bvg:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  25s   default-scheduler  Successfully assigned default/yellow to controlplane
+  Normal  Pulling    24s   kubelet            Pulling image "busybox"
+  Normal  Pulled     24s   kubelet            Successfully pulled image "busybox" in 166ms (166ms including waiting). Image size: 2156518 bytes.
+  Normal  Created    24s   kubelet            Created container: lemon
+  Normal  Started    23s   kubelet            Started container lemon
+  Normal  Pulling    23s   kubelet            Pulling image "redis"
+  Normal  Pulled     23s   kubelet            Successfully pulled image "redis" in 155ms (155ms including waiting). Image size: 49527330 bytes.
+  Normal  Created    23s   kubelet            Created container: gold
+  Normal  Started    22s   kubelet            Started container gold
+```
 
 
