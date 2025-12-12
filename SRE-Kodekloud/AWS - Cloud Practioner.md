@@ -358,6 +358,8 @@ sudo mount.efs instance_id /efs
 df -h # check volume mounted
 ```
 
+PS: to use EFS in other distros: https://github.com/aws/efs-utils?tab=readme-ov-file#on-other-linux-distributions 
+§
 
 Lets now edit our fstab and make this persistent
 

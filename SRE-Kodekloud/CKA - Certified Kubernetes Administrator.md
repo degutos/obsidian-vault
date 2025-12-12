@@ -601,6 +601,10 @@ In k8s version 1.19+, we can specify the –replicas option to create a deployme
 kubectl create deployment --image=nginx nginx --replicas=4 --dry-run=client -o yaml > nginx-deployment.yaml
 ```
 
+## kubectl api-resources
+
+- Use kubectl api-resources to list all kubernetes resources within the API/etcd. It is good option when you don't remember a resource name you need to investigate.
+
 
 ## Kubectl explain
 
@@ -610,6 +614,30 @@ kubectl create deployment --image=nginx nginx --replicas=4 --dry-run=client -o y
 ➜  kubectl explain deployment 
 ```
 
+or 
+
+```sh
+$ kubectl explain pods
+```
+
+
+To go deeper and get more details explained use:
+
+```sh
+$ kubectl explain pods.spec
+```
+
+To get the entire list of commands use:
+
+```sh
+$ kubectl explain pods --recursive
+```
+
+To get the explanation of what is available in containers session:
+
+```sh
+➜  kubectl explain pod.spec.containers
+```
 
 ## Create a deployment from yaml file
 
@@ -1087,6 +1115,15 @@ Lets create a pod httpd and expose it as type clusterIP on port 80
 service/httpd created
 pod/httpd created
 ```
+
+
+Lets create a namespace
+
+```sh
+➜  kubectl create ns dev-ns
+namespace/dev-ns created
+```
+
 
 
 ### Scheduling 
@@ -2618,6 +2655,21 @@ controlplane ~ ➜  kubectl logs webapp-2
 ```
 
 
+We can also use logs with -f to display like the tail -f 
+
+```sh
+kubectl logs -f webapp-2
+```
+
+
+Another cool option to use with logs is the parameter or flag --previous to access logs from the last attempt to restart the pod
+
+```sh
+kubectl logs webapp-2 --previous 
+```
+
+
+
 ## Rolling updates
 
 
@@ -3058,5 +3110,1799 @@ Events:
   Normal  Created    23s   kubelet            Created container: gold
   Normal  Started    22s   kubelet            Started container gold
 ```
+
+
+## kubernetes error code for troubleshooting
+
+https://github.com/anveshmuppeda/kubernetes/tree/main/docs/012-troubleshoot
+
+https://medium.com/@muppedaanvesh/a-hands-on-guide-to-kubernetes-exit-codes-simulate-and-fix-%EF%B8%8F-f2ad57d3cdca
+
+
+
+## initContainer pods
+
+
+In a **multi-container Pod**, each container is expected to run a process that stays alive for the **entire lifecycle of the Pod**.
+
+For example, in a Pod with a **web application** and a **logging agent**, both containers are expected to remain active throughout the Pod’s lifecycle. The process in the logging agent container must stay alive as long as the web application is running. If any main container fails and the Pod's `restartPolicy` is `Always` or `OnFailure`, the **entire Pod is restarted**.
+
+Using initContainer 
+
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+  labels:
+    app: myapp
+spec:
+  initContainers:
+    - name: init-myservice
+      image: busybox:1.31
+      command: ["sh", "-c", "until nslookup myservice; do echo waiting for myservice; sleep 2; done;"]
+    - name: init-mydb
+      image: busybox:1.31
+      command: ["sh", "-c", "until nslookup mydb; do echo waiting for mydb; sleep 2; done;"]
+  containers:
+    - name: myapp-container
+      image: busybox:1.28
+      command: ["sh", "-c", "echo The app is running! && sleep 3600"]
+```
+
+
+Example of native sidecar
+
+```
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sidecar-example
+spec:
+  initContainers:
+    - name: sidecar-logger
+      image: busybox:1.31
+      restartPolicy: Always
+      command: ["sh", "-c", "while true; do echo Sidecar running; sleep 10; done"]
+  containers:
+    - name: main-app
+      image: busybox:1.31
+      command: ["sh", "-c", "echo Main app starting; sleep 60"]
+```
+
+
+
+
+```sh
+controlplane ~ ➜  kubectl describe po blue
+Name:             blue
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             controlplane/192.168.219.190
+Start Time:       Fri, 17 Oct 2025 12:26:30 +0000
+Labels:           <none>
+Annotations:      <none>
+Status:           Running
+IP:               10.22.0.11
+IPs:
+  IP:  10.22.0.11
+Init Containers:
+  init-myservice:
+    Container ID:  containerd://034ee7e8d1362c3370cee21d1acee54856f3866c00edeba8d35b59a5798ea18b
+    Image:         busybox
+    Image ID:      docker.io/library/busybox@sha256:2f590fc602ce325cbff2ccfc39499014d039546dc400ef8bbf5c6ffb860632e7
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      sleep 5
+    State:          Terminated
+      Reason:       Completed
+      Exit Code:    0
+      Started:      Fri, 17 Oct 2025 12:26:31 +0000
+      Finished:     Fri, 17 Oct 2025 12:26:36 +0000
+    Ready:          True
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-j24gg (ro)
+Containers:
+...
+```
+
+
+Notice the state is "Terminated" and the Reason is Completed
+
+
+See now one pod with 02 initContainers:
+
+```sh
+✖ kubectl describe po purple
+Name:             purple
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             controlplane/192.168.219.190
+Start Time:       Fri, 17 Oct 2025 12:31:41 +0000
+Labels:           <none>
+Annotations:      <none>
+Status:           Pending
+IP:               10.22.0.12
+IPs:
+  IP:  10.22.0.12
+Init Containers:
+  warm-up-1:
+    Container ID:  containerd://d03521d57232fd619ad4b9c2acf3b7bee78958e044bcfb51e59818fc6b918060
+    Image:         busybox:1.28
+    Image ID:      docker.io/library/busybox@sha256:141c253bc4c3fd0a201d32dc1f493bcf3fff003b6df416dea4f41046e0f37d47
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      sleep 600
+    State:          Running
+      Started:      Fri, 17 Oct 2025 12:31:42 +0000
+    Ready:          False
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-mnxt8 (ro)
+  warm-up-2:
+    Container ID:  
+    Image:         busybox:1.28
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      sleep 1200
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-mnxt8 (ro)
+Containers:
+  purple-container:
+    Container ID:  
+    Image:         busybox:1.28
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      echo The app is running! && sleep 3600
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-mnxt8 (ro)
+Conditions:
+...
+```
+
+
+
+Notice that in the first initContainer called warm-up-1 it sleep for 600s and the second initContainer called warm-up-2 sleeps for 1200, which means it will wait 30 minutes before starting the application with pod purple-container.
+
+See another sample:
+
+```sh
+spec:
+  initContainers:
+  - name: red-initcontainer
+    image: busybox
+    command: ["sleep","20"]
+```
+
+
+Replacing your pod with updated yaml file:
+
+```sh
+$ kubectl replace --force -f /tmp/kubectl-edit-2951710210.yaml
+```
+
+
+
+```sh
+controlplane ~ ➜  kubectl get pods orange
+NAME     READY   STATUS       RESTARTS      AGE
+orange   0/1     Init:Error   2 (25s ago)   28s
+```
+
+
+```sh
+controlplane ~ ➜  kubectl describe po orange
+Name:             orange
+Namespace:        default
+Priority:         0
+Service Account:  default
+Node:             controlplane/192.168.219.190
+Start Time:       Fri, 17 Oct 2025 12:42:09 +0000
+Labels:           <none>
+Annotations:      <none>
+Status:           Pending
+IP:               10.22.0.14
+IPs:
+  IP:  10.22.0.14
+Init Containers:
+  init-myservice:
+    Container ID:  containerd://68e22d9a1186792825b3556ca920166ff097711b6249baad4b16a2336216aa55
+    Image:         busybox
+    Image ID:      docker.io/library/busybox@sha256:2f590fc602ce325cbff2ccfc39499014d039546dc400ef8bbf5c6ffb860632e7
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      sleeeep 2;
+    State:          Terminated
+      Reason:       Error
+      Exit Code:    127
+      Started:      Fri, 17 Oct 2025 12:42:55 +0000
+      Finished:     Fri, 17 Oct 2025 12:42:55 +0000
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    127
+      Started:      Fri, 17 Oct 2025 12:42:25 +0000
+      Finished:     Fri, 17 Oct 2025 12:42:25 +0000
+    Ready:          False
+    Restart Count:  3
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-d9lq4 (ro)
+Containers:
+  orange-container:
+    Container ID:  
+    Image:         busybox:1.28
+    Image ID:      
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      echo The app is running! && sleep 3600
+    State:          Waiting
+      Reason:       PodInitializing
+    Ready:          False
+    Restart Count:  0
+    Environment:    <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-d9lq4 (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   True 
+  Initialized                 False 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-d9lq4:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   BestEffort
+Node-Selectors:              <none>
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason     Age               From               Message
+  ----     ------     ----              ----               -------
+  Normal   Scheduled  53s               default-scheduler  Successfully assigned default/orange to controlplane
+  Normal   Pulled     52s               kubelet            Successfully pulled image "busybox" in 122ms (122ms including waiting). Image size: 2223686 bytes.
+  Normal   Pulled     50s               kubelet            Successfully pulled image "busybox" in 127ms (127ms including waiting). Image size: 2223686 bytes.
+  Normal   Pulled     37s               kubelet            Successfully pulled image "busybox" in 145ms (145ms including waiting). Image size: 2223686 bytes.
+  Normal   Pulling    8s (x4 over 52s)  kubelet            Pulling image "busybox"
+  Normal   Pulled     8s                kubelet            Successfully pulled image "busybox" in 126ms (126ms including waiting). Image size: 2223686 bytes.
+  Normal   Created    7s (x4 over 52s)  kubelet            Created container: init-myservice
+  Normal   Started    7s (x4 over 52s)  kubelet            Started container init-myservice
+  Warning  BackOff    6s (x4 over 49s)  kubelet            Back-off restarting failed container init-myservice in pod orange_default(543b9fab-2404-40e5-838e-aa66ecabaf3b)
+```
+
+
+Notice the events:
+
+
+```
+  Normal   Created    7s (x4 over 52s)  kubelet            Created container: init-myservice
+  Normal   Started    7s (x4 over 52s)  kubelet            Started container init-myservice
+  Warning  BackOff    6s (x4 over 49s)  kubelet            Back-off restarting failed container init-myservice in pod orange_default(543b9fab-2404-40e5-838e-aa66ecabaf3b)
+```
+
+
+something is causing back-off on init-myservice 
+Notice Exit Code:    127 which means "Command not found" , see https://www.anantacloud.com/post/kubernetes-exit-codes-decoded-common-problems-and-solutions
+
+Lets check the logs
+
+```
+controlplane ~ ➜  kubectl logs orange 
+Defaulted container "orange-container" out of: orange-container, init-myservice (init)
+Error from server (BadRequest): container "orange-container" in pod "orange" is waiting to start: PodInitializing
+```
+
+Logs are showed for the container "orange-container" which is waiting to start. Lets check now logs for the initContainer:
+
+```sh
+controlplane ~ ✖ kubectl logs orange -c init-myservice
+sh: sleeeep: not found
+```
+
+As we see we got command not found, lets fix that
+
+```
+  - command:
+    - sh
+    - -c
+    - sleep 2;
+```
+
+
+```sh
+kubectl replace --force -f /tmp/kubectl-edit-2045163821.yaml
+pod "orange" deleted
+pod/orange replaced
+```
+
+
+
+
+## Self-healing applications - Autoscaling
+
+
+- Vertical autoscaling - increase capacity of server like memory and cpu.
+- Horizontal autoscaling - increase number of nodes and pods adding new servers to the cluster.
+
+
+### Manual Scaling of a Kubernetes Deployment
+
+Lets create a deployment with deployment.yaml using flask application.
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-web-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: flask-app
+  template:
+    metadata:
+      labels:
+        app: flask-app
+    spec:
+      containers:
+      - name: flask
+        image: rakshithraka/flask-web-app
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-web-app-service
+spec:
+  type: ClusterIP
+  selector:
+    app: flask-app
+  ports:
+   - port: 80
+     targetPort: 80
+```
+
+
+
+
+
+```sh
+controlplane ~ ➜  kubectl apply -f deployment.yml 
+deployment.apps/flask-web-app created
+service/flask-web-app-service created
+```
+
+
+Lets see our resources.
+
+```sh
+controlplane ~ ➜  kubectl get deploy
+NAME            READY   UP-TO-DATE   AVAILABLE   AGE
+flask-web-app   2/2     2            2           23s
+
+controlplane ~ ➜  kubectl get pods
+NAME                             READY   STATUS    RESTARTS   AGE
+flask-web-app-584dd886c8-lz9c4   1/1     Running   0          30s
+flask-web-app-584dd886c8-tnc57   1/1     Running   0          30s
+```
+
+
+
+
+Lets scale flask-web-app to 3 replicas.
+
+```sh
+controlplane ~ ➜  kubectl scale deploy flask-web-app --replicas=3
+deployment.apps/flask-web-app scaled
+
+controlplane ~ ➜  kubectl get pods
+NAME                             READY   STATUS    RESTARTS   AGE
+flask-web-app-584dd886c8-lz9c4   1/1     Running   0          3m23s
+flask-web-app-584dd886c8-nw9h4   1/1     Running   0          6s
+flask-web-app-584dd886c8-tnc57   1/1     Running   0          3m23s
+```
+
+
+
+Lets see now all deployments, svc and endpoint.
+
+```sh
+controlplane ~ ➜  kubectl get deploy
+NAME            READY   UP-TO-DATE   AVAILABLE   AGE
+flask-web-app   3/3     3            3           7m25s
+
+controlplane ~ ➜  kubectl get svc
+NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+flask-web-app-service   ClusterIP   172.20.242.253   <none>        80/TCP    8m32s
+kubernetes              ClusterIP   172.20.0.1       <none>        443/TCP   64m
+
+
+controlplane ~ ➜  kubectl get ep
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME                    ENDPOINTS                                   AGE
+flask-web-app-service   172.17.1.7:80,172.17.1.8:80,172.17.1.9:80   7m33s
+kubernetes              192.168.142.205:6443                        63m
+
+controlplane ~ ➜  kubectl get pods -o wide
+NAME                             READY   STATUS    RESTARTS   AGE     IP           NODE     NOMINATED NODE   READINESS GATES
+flask-web-app-584dd886c8-lz9c4   1/1     Running   0          7m40s   172.17.1.7   node01   <none>           <none>
+flask-web-app-584dd886c8-nw9h4   1/1     Running   0          4m23s   172.17.1.9   node01   <none>           <none>
+flask-web-app-584dd886c8-tnc57   1/1     Running   0          7m40s   172.17.1.8   node01   <none>           <none>
+
+```
+
+
+### Lab HPA - horizontal pod autoscaling 
+
+Lets create a deployment with deployment.yaml with nginx application.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 7
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+```
+
+
+```sh
+controlplane ~ ➜  kubectl apply -f deployment.yml 
+deployment.apps/nginx-deployment created
+
+controlplane ~ ➜  kubectl get deploy 
+NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+nginx-deployment   7/7     7            7           24s
+
+controlplane ~ ➜  kubectl get pods
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-647677fc66-5579t   1/1     Running   0          94s
+nginx-deployment-647677fc66-9xlfg   1/1     Running   0          94s
+nginx-deployment-647677fc66-crqtq   1/1     Running   0          94s
+nginx-deployment-647677fc66-jc9cz   1/1     Running   0          94s
+nginx-deployment-647677fc66-m42s4   1/1     Running   0          94s
+nginx-deployment-647677fc66-qgfcw   1/1     Running   0          94s
+nginx-deployment-647677fc66-zvwfz   1/1     Running   0          94s
+```
+
+
+Lets create a autoscale.yaml
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  creationTimestamp: null
+  name: nginx-deployment
+spec:
+  maxReplicas: 3
+  metrics:
+  - resource:
+      name: cpu
+      target:
+        averageUtilization: 80
+        type: Utilization
+    type: Resource
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx-deployment
+status:
+  currentMetrics: null
+  desiredReplicas: 0
+  currentReplicas: 0
+```
+
+
+```sh
+controlplane ~ ➜  kubectl apply -f autoscale.yml 
+horizontalpodautoscaler.autoscaling/nginx-deployment created
+
+controlplane ~ ➜  kubectl get deploy
+NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+nginx-deployment   3/3     3            3           5m39s
+
+controlplane ~ ➜  kubectl get pods
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-647677fc66-m42s4   1/1     Running   0          5m48s
+nginx-deployment-647677fc66-qgfcw   1/1     Running   0          5m48s
+nginx-deployment-647677fc66-zvwfz   1/1     Running   0          5m48s
+```
+
+
+Lets check the status of HPA
+
+```sh
+controlplane ~ ➜  kubectl get hpa
+NAME               REFERENCE                     TARGETS              MINPODS   MAXPODS   REPLICAS   AGE
+nginx-deployment   Deployment/nginx-deployment   cpu: <unknown>/80%   1         3         3          2m26s
+```
+
+
+Lets fix the failing HPA failing due the resource field missing in the deployment
+
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 7
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.2
+        ports:
+        - containerPort: 80
+        resources:
+         requests:
+           cpu: 100m
+         limits:
+           cpu: 200m
+```
+
+
+
+```sh
+controlplane ~ ➜  kubectl apply -f deployment.yml 
+deployment.apps/nginx-deployment configured
+```
+
+
+Lets check now
+
+```sh
+controlplane ~ ➜  kubectl get hpa --watch
+NAME               REFERENCE                     TARGETS              MINPODS   MAXPODS   REPLICAS   AGE
+nginx-deployment   Deployment/nginx-deployment   cpu: <unknown>/80%   1         3         3          6m21s
+nginx-deployment   Deployment/nginx-deployment   cpu: 0%/80%          1         3         3          6m31s
+```
+
+
+
+### In-place pod resizing
+
+
+In a default kubernetes previously behavior when we change a deployment manifest to add more memory or cpu the pod automatically have to recycle, get deleted and recreated for the new configuration take in place.
+
+The new versions of kubernetes has a feature to resize cpu and memory resources to a container and the pod won't die, this feature is currently in alpha version and has to be enabled before using
+
+Run:
+```sh
+FEATURE_GATES=InPlacePodVerticalScaling=true
+```
+
+
+
+Limitations:
+
+- only works for cpu and memory
+- pod QOS class can not change
+- initContainers and ephemeral containers cannot be resize
+- a container memory limit can not be set below its current usage
+
+
+ ### Install VPA - vertical pod autoscaling 
+
+
+### **Lab Objective:**
+
+In this lab, you will install and configure the Vertical Pod Autoscaler (VPA) in your Kubernetes cluster. The lab will walk you through the installation of VPA using predefined manifests, cloning the VPA repository for advanced control, and deploying a sample application to see how VPA interacts with it. Additionally, you'll learn how to troubleshoot issues using VPA logs.
+
+By the end of this lab, you should be able to:
+
+- **Install VPA** and its components (Recommender, Updater, Admission Controller) in a Kubernetes cluster
+- **Understand the role of each VPA component** and how they contribute to efficient resource management
+- **Deploy a sample application** to see how VPA recommends and adjusts resources for it
+- **Troubleshoot resource-related issues** in your application using logs generated by the VPA components, particularly the VPA Updater
+
+This hands-on experience will give you the skills to manage pod resources dynamically in a production-grade Kubernetes environment, ensuring that applications run efficiently with the appropriate resource requests.
+
+
+### Step 1: Install VPA Custom Resource Definitions (CRDs)
+
+These CRDs allow Kubernetes to recognize the custom resources that VPA uses to function properly. To install them, run this command:
+
+```bash
+kubectl apply -f /root/vpa-crds.yml
+```
+
+
+### Step 2: Install VPA Role-Based Access Control (RBAC)
+
+RBAC ensures that VPA has the appropriate permissions to operate within your Kubernetes cluster. To install the RBAC settings, run:
+
+```bash
+kubectl apply -f /root/vpa-rbac.yml
+```
+
+By running these commands, the VPA will be successfully deployed to your cluster, ready to manage and adjust your pod resources dynamically.
+
+```sh
+controlplane ~ ➜  kubectl apply -f /root/vpa-crds.yml
+customresourcedefinition.apiextensions.k8s.io/verticalpodautoscalercheckpoints.autoscaling.k8s.io created
+customresourcedefinition.apiextensions.k8s.io/verticalpodautoscalers.autoscaling.k8s.io created
+
+controlplane ~ ➜  kubectl apply -f /root/vpa-rbac.yml
+clusterrole.rbac.authorization.k8s.io/system:metrics-reader created
+clusterrole.rbac.authorization.k8s.io/system:vpa-actor created
+clusterrole.rbac.authorization.k8s.io/system:vpa-status-actor created
+clusterrole.rbac.authorization.k8s.io/system:vpa-checkpoint-actor created
+clusterrole.rbac.authorization.k8s.io/system:evictioner created
+clusterrolebinding.rbac.authorization.k8s.io/system:metrics-reader created
+clusterrolebinding.rbac.authorization.k8s.io/system:vpa-actor created
+clusterrolebinding.rbac.authorization.k8s.io/system:vpa-status-actor created
+clusterrolebinding.rbac.authorization.k8s.io/system:vpa-checkpoint-actor created
+clusterrole.rbac.authorization.k8s.io/system:vpa-target-reader created
+clusterrolebinding.rbac.authorization.k8s.io/system:vpa-target-reader-binding created
+clusterrolebinding.rbac.authorization.k8s.io/system:vpa-evictioner-binding created
+serviceaccount/vpa-admission-controller created
+serviceaccount/vpa-recommender created
+serviceaccount/vpa-updater created
+clusterrole.rbac.authorization.k8s.io/system:vpa-admission-controller created
+clusterrolebinding.rbac.authorization.k8s.io/system:vpa-admission-controller created
+clusterrole.rbac.authorization.k8s.io/system:vpa-status-reader created
+clusterrolebinding.rbac.authorization.k8s.io/system:vpa-status-reader-binding created
+```
+
+
+### **Clone the VPA Repository and Set Up the Vertical Pod Autoscaler**
+
+You are required to clone the Kubernetes Autoscaler repository into the `/root` directory and set up the Vertical Pod Autoscaler (VPA) by running the provided script.
+
+
+1. First, navigate to the `/root` directory and clone the repository:
+    
+
+```bash
+  git clone https://github.com/kubernetes/autoscaler.git
+```
+
+
+2. After cloning, move into the `vertical-pod-autoscaler` directory:
+    
+
+```bash
+   cd autoscaler/vertical-pod-autoscaler
+```
+
+3. **Run the setup script:**
+    
+    Execute the provided script to deploy the Vertical Pod Autoscaler:
+    
+
+```bash
+   ./hack/vpa-up.sh
+```
+
+By following these steps, the Vertical Pod Autoscaler will be installed and ready to manage pod resources in your Kubernetes cluster.
+
+
+```sh
+controlplane autoscaler/vertical-pod-autoscaler on  HEAD (a8ca316) via 🐹 ➜  kubectl get crds | grep verticalpodauto
+verticalpodautoscalercheckpoints.autoscaling.k8s.io   2025-10-18T09:55:43Z
+verticalpodautoscalers.autoscaling.k8s.io             2025-10-18T09:55:43Z
+```
+
+
+```sh
+controlplane autoscaler/vertical-pod-autoscaler on  HEAD (a8ca316) via 🐹 ➜  kubectl get pods -n kube-system | grep vpa- 
+vpa-admission-controller-76f55f79cc-bcxtl   1/1     Running   0          4m20s
+vpa-recommender-588485c64b-w9d5p            1/1     Running   0          4m20s
+vpa-updater-75d58448cf-kgp9f                1/1     Running   0          4m20s
+```
+
+
+
+```sh
+controlplane ~ ➜  kubectl apply -f flask-app.yml 
+deployment.apps/flask-app created
+service/flask-app-service created
+verticalpodautoscaler.autoscaling.k8s.io/flask-app created
+```
+
+
+```sh
+➜  kubectl logs -f vpa-updater-75d58448cf-kgp9f -n kube-system
+...
+I1018 10:09:49.396629       1 pods_restriction_factory.go:212] "Too few replicas" kind="ReplicaSet" object="default/flask-app-67b666c5fc" livePods=1 requiredPods=2 globalMinReplicas=2
+```
+
+```sh
+controlplane ~ ➜  kubectl get pods
+NAME                         READY   STATUS    RESTARTS   AGE
+flask-app-67b666c5fc-27qwv   1/1     Running   0          7m34s
+```
+
+
+```sh
+ ➜  kubectl scale deployment flask-app --replicas=2
+deployment.apps/flask-app scaled
+
+➜  kubectl get pods
+NAME                         READY   STATUS    RESTARTS   AGE
+flask-app-67b666c5fc-27qwv   1/1     Running   0          8m37s
+flask-app-67b666c5fc-68z2r   1/1     Running   0          2s
+```
+
+```sh
+controlplane ~ ✖ kubectl get deployment flask-app -o wide
+NAME        READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                          SELECTOR
+flask-app   2/2     2            2           10m   flask-app    kodekloud/flask-session-app:1   app=flask-app
+```
+
+```sh
+controlplane ~ ➜  kubectl get pods -l app=flask-app
+NAME                         READY   STATUS    RESTARTS   AGE
+flask-app-67b666c5fc-68z2r   1/1     Running   0          2m48s
+flask-app-67b666c5fc-sh98k   1/1     Running   0          114s
+```
+
+```sh
+Events:
+  Type    Reason      Age    From         Message
+  ----    ------      ----   ----         -------
+  Normal  EvictedPod  2m17s  vpa-updater  VPA Updater evicted Pod flask-app-67b666c5fc-27qwv to apply resource recommendation.
+```
+
+
+```sh
+controlplane ~ ➜  kubectl get pods -l app=flask-app
+NAME                         READY   STATUS    RESTARTS   AGE
+flask-app-67b666c5fc-68z2r   1/1     Running   0          3m18s
+flask-app-67b666c5fc-sh98k   1/1     Running   0          2m24s
+```
+
+
+
+
+
+
+```sh
+controlplane ~ ✖ kubectl top pod
+NAME                           CPU(cores)   MEMORY(bytes)   
+flask-app-4-7dcd9549fc-59kjc   23m          19Mi            
+flask-app-4-7dcd9549fc-g4h49   26m          19Mi            
+
+controlplane ~ ➜  kubectl top pod
+NAME                           CPU(cores)   MEMORY(bytes)   
+flask-app-4-7dcd9549fc-59kjc   1m           19Mi            
+flask-app-4-7dcd9549fc-g4h49   1m           19Mi      
+```
+
+
+---
+
+
+
+Example to mount volume in yaml pod.
+
+```sh
+        volumeMounts:       
+        - name: config-volume
+          mountPath: /etc/config
+      volumes:
+      - name: config-volume
+        configMap: 
+          name: app-config
+```
+
+
+
+
+---
+
+
+
+
+## Cluster Maintenance
+
+### OS upgrade
+
+
+Lets check all nodes and see they are ready
+
+```sh
+➜  kubectl get no
+NAME           STATUS   ROLES           AGE   VERSION
+controlplane   Ready    control-plane   12m   v1.33.0
+node01         Ready    <none>          12m   v1.33.0
+```
+
+
+Lets see that we have only one deployment 
+
+```sh
+➜  kubectl get deploy
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+blue   3/3     3            3           10s
+```
+
+
+Notice that the pods are deployed in 02 different nodes
+
+```sh
+➜  kubectl get pods -o wide
+NAME                    READY   STATUS    RESTARTS   AGE   IP           NODE           NOMINATED NODE   READINESS GATES
+blue-69968556cc-bvqb8   1/1     Running   0          50s   172.17.0.4   controlplane   <none>           <none>
+blue-69968556cc-kqbrp   1/1     Running   0          50s   172.17.1.2   node01         <none>           <none>
+blue-69968556cc-tjknm   1/1     Running   0          50s   172.17.1.3   node01         <none>           <none>
+```
+
+
+Lets take out the node01 out for maintenance. For this we drain the node01, when we drain the node we set it unschedule and evict all pods from that node
+
+```sh
+✖ kubectl drain node01 --ignore-daemonsets 
+node/node01 already cordoned
+Warning: ignoring DaemonSet-managed Pods: kube-flannel/kube-flannel-ds-kdzc4, kube-system/kube-proxy-rpwfq
+evicting pod default/blue-69968556cc-tjknm
+evicting pod default/blue-69968556cc-kqbrp
+pod/blue-69968556cc-kqbrp evicted
+pod/blue-69968556cc-tjknm evicted
+node/node01 drained
+```
+
+
+```sh
+➜  kubectl get pods -o wide
+NAME                    READY   STATUS    RESTARTS   AGE     IP           NODE           NOMINATED NODE   READINESS GATES
+blue-69968556cc-bvqb8   1/1     Running   0          3m20s   172.17.0.4   controlplane   <none>           <none>
+blue-69968556cc-dwhxr   1/1     Running   0          83s     172.17.0.5   controlplane   <none>           <none>
+blue-69968556cc-llmpx   1/1     Running   0          83s     172.17.0.6   controlplane   <none>           <none>
+```
+
+
+```sh
+➜  kubectl get no
+NAME           STATUS                     ROLES           AGE   VERSION
+controlplane   Ready                      control-plane   17m   v1.33.0
+node01         Ready,SchedulingDisabled   <none>          16m   v1.33.0
+```
+
+
+
+Once the maintenance is over we can enable node01 back up by uncordon it
+
+```sh
+➜  kubectl uncordon node01
+node/node01 uncordoned
+```
+
+
+```sh
+➜  kubectl get pods -o wide
+NAME                    READY   STATUS    RESTARTS   AGE     IP           NODE           NOMINATED NODE   READINESS GATES
+blue-69968556cc-bvqb8   1/1     Running   0          5m49s   172.17.0.4   controlplane   <none>           <none>
+blue-69968556cc-dwhxr   1/1     Running   0          3m52s   172.17.0.5   controlplane   <none>           <none>
+blue-69968556cc-llmpx   1/1     Running   0          3m52s   172.17.0.6   controlplane   <none>           <none>
+```
+
+
+
+```sh
+➜  kubectl get no
+NAME           STATUS   ROLES           AGE   VERSION
+controlplane   Ready    control-plane   19m   v1.33.0
+node01         Ready    <none>          19m   v1.33.0
+```
+
+```sh
+➜  kubectl describe no controlplane | grep -i taints
+Taints:             <none>
+```
+
+
+
+lets try to drain a node01 with one pod within that is not part of any replicaset
+
+```sh
+➜  kubectl drain node01 --ignore-daemonsets 
+node/node01 cordoned
+error: unable to drain node "node01" due to error: cannot delete cannot delete Pods that declare no controller (use --force to override): default/hr-app, continuing command...
+There are pending nodes to be drained:
+ node01
+cannot delete cannot delete Pods that declare no controller (use --force to override): default/hr-app
+```
+
+
+```sh
+➜  kubectl get pods -o wide
+NAME                    READY   STATUS    RESTARTS   AGE     IP           NODE           NOMINATED NODE   READINESS GATES
+blue-69968556cc-bvqb8   1/1     Running   0          9m35s   172.17.0.4   controlplane   <none>           <none>
+blue-69968556cc-dwhxr   1/1     Running   0          7m38s   172.17.0.5   controlplane   <none>           <none>
+blue-69968556cc-llmpx   1/1     Running   0          7m38s   172.17.0.6   controlplane   <none>           <none>
+hr-app                  1/1     Running   0          80s     172.17.1.4   node01         <none>           <none>
+```
+
+
+
+```sh
+➜  kubectl drain node01 --ignore-daemonsets --force
+node/node01 already cordoned
+Warning: deleting Pods that declare no controller: default/hr-app; ignoring DaemonSet-managed Pods: kube-flannel/kube-flannel-ds-kdzc4, kube-system/kube-proxy-rpwfq
+evicting pod default/hr-app
+pod/hr-app evicted
+node/node01 drained
+```
+
+
+Let now just cordon the node, when we cordon the node the pod running continuing running although no new pods are deployed in node01
+
+
+```sh
+➜  kubectl cordon node01
+node/node01 cordoned
+```
+
+
+```sh
+➜  kubectl get pods -o wide
+NAME                    READY   STATUS    RESTARTS   AGE   IP           NODE           NOMINATED NODE   READINESS GATES
+blue-69968556cc-bvqb8   1/1     Running   0          12m   172.17.0.4   controlplane   <none>           <none>
+blue-69968556cc-dwhxr   1/1     Running   0          10m   172.17.0.5   controlplane   <none>           <none>
+blue-69968556cc-llmpx   1/1     Running   0          10m   172.17.0.6   controlplane   <none>           <none>
+hr-app-79c459cc-g6qbt   1/1     Running   0          95s   172.17.1.5   node01         <none>           <none>
+```
+
+
+```sh
+➜  kubectl get no
+NAME           STATUS                     ROLES           AGE   VERSION
+controlplane   Ready                      control-plane   25m   v1.33.0
+node01         Ready,SchedulingDisabled   <none>          25m   v1.33.0
+```
+
+
+
+## Kubernetes versions
+
+
+Ideally all kubernetes architecture resource should have the same version that kube-api.
+No resources should be a version in front of kube-api
+
+- kubectl control and scheduler should be up 1 level blelow 
+- kubelet and proxy could have 2 version below
+
+
+
+## Kubeadm upgrade
+
+
+- kubeadm upgrade plan ## to plan the cluster upgrade
+- kubeadm update to new version ## to update the kubeadm client first to new version
+- kubeadm upgrade apply ## to upgrade the entire cluster
+- upgrade kubelet on all nodes required usually all worker nodes ## to updgrade the kubelet in all worker nodes.
+
+
+### How to upgrade kube cluster from v1.11 to v1.12
+
+
+```sh
+apt-get upgrade -y kubeadm=1.12.0-00 ## to update the kubeadm itself
+kubeadm upgrade apply v1.12.0 ## then we update the cluster to new version v1.12.0. This update your control plane. Next: kubelet
+kubectl get nodes ## this show us the current version v1.11.3, since worker nodes were not update yet only contol plane
+
+# On master node
+apt-get upgrade -y kubelet=1.12.0-00 ## to update your kubelet on master node, if you have installed previously your kubelet in master
+systemctl restart kubelet
+kubectl get nodes ## show us master in version v1.12.0 and workers at v1.11.3
+
+# Update worker nodes
+kubectl drain node01 # to unschedule and drain / evict all pods from node01
+apt-get upgrade -y kubeadm=1.12.0-00
+apt-get upgrade -y kubelet=1.12.0-00
+kubeadm upgrade node config --kubelet-version v1.12.0
+systemctl restart kubelet
+kubectl uncordon node01 ## set node01 to schedule pods again and allow it to be in READY state and updated version
+kubectl get nodes ## you will see the node01 upgraded version
+```
+
+
+### Demo upgrade kubernetes cluster from v1.32 to v1.33
+
+
+```sh
+➜  kubectl get no
+NAME           STATUS   ROLES           AGE   VERSION
+controlplane   Ready    control-plane   19m   v1.32.0
+node01         Ready    <none>          18m   v1.32.0
+```
+
+
+```sh
+➜  kubectl get po -o wide
+NAME                    READY   STATUS    RESTARTS   AGE     IP           NODE           NOMINATED NODE   READINESS GATES
+blue-69968556cc-4jr99   1/1     Running   0          2m32s   172.17.0.4   controlplane   <none>           <none>
+blue-69968556cc-4qmwx   1/1     Running   0          2m32s   172.17.1.3   node01         <none>           <none>
+blue-69968556cc-7hmjc   1/1     Running   0          2m32s   172.17.1.4   node01         <none>           <none>
+blue-69968556cc-9kb9c   1/1     Running   0          2m32s   172.17.1.2   node01         <none>           <none>
+blue-69968556cc-fv8pw   1/1     Running   0          2m32s   172.17.0.5   controlplane   <none>           <none>
+```
+
+
+
+```sh
+➜  kubectl describe no controlplane | grep -i taints
+Taints:             <none>
+```
+
+
+
+```sh
+➜  kubectl get deploy
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+blue   5/5     5            5           4m18s
+```
+
+
+
+#### How to know the next kube version
+
+
+Lets see the current kubeadm version and what is the latest version supported by this kubeadm version:
+
+```sh
+✖ kubeadm version
+kubeadm version: &version.Info{Major:"1", Minor:"32", GitVersion:"v1.32.0", GitCommit:"70d3cc986aa8221cd1dfb1121852688902d3bf53", GitTreeState:"clean", BuildDate:"2024-12-11T18:04:20Z", GoVersion:"go1.23.3", Compiler:"gc", Platform:"linux/amd64"}
+```
+
+
+
+```sh
+➜  kubeadm upgrade plan
+[preflight] Running pre-flight checks.
+[upgrade/config] Reading configuration from the "kubeadm-config" ConfigMap in namespace "kube-system"...
+[upgrade/config] Use 'kubeadm init phase upload-config --config your-config.yaml' to re-upload it.
+[upgrade] Running cluster health checks
+[upgrade] Fetching available versions to upgrade to
+[upgrade/versions] Cluster version: 1.32.0
+[upgrade/versions] kubeadm version: v1.32.0
+I1026 13:31:40.310135   19870 version.go:261] remote version is much newer: v1.34.1; falling back to: stable-1.32
+[upgrade/versions] Target version: v1.32.9
+[upgrade/versions] Latest version in the v1.32 series: v1.32.9
+
+Components that must be upgraded manually after you have upgraded the control plane with 'kubeadm upgrade apply':
+COMPONENT   NODE           CURRENT   TARGET
+kubelet     controlplane   v1.32.0   v1.32.9
+kubelet     node01         v1.32.0   v1.32.9
+
+Upgrade to the latest version in the v1.32 series:
+
+COMPONENT                 NODE           CURRENT    TARGET
+kube-apiserver            controlplane   v1.32.0    v1.32.9
+kube-controller-manager   controlplane   v1.32.0    v1.32.9
+kube-scheduler            controlplane   v1.32.0    v1.32.9
+kube-proxy                               1.32.0     v1.32.9
+CoreDNS                                  v1.10.1    v1.11.3
+etcd                      controlplane   3.5.16-0   3.5.16-0
+
+You can now apply the upgrade by executing the following command:
+
+        kubeadm upgrade apply v1.32.9
+
+Note: Before you can perform this upgrade, you have to update kubeadm to v1.32.9.
+
+_____________________________________________________________________
+
+
+The table below shows the current state of component configs as understood by this version of kubeadm.
+Configs that have a "yes" mark in the "MANUAL UPGRADE REQUIRED" column require manual config upgrade or
+resetting to kubeadm defaults before a successful upgrade can be performed. The version to manually
+upgrade to is denoted in the "PREFERRED VERSION" column.
+
+API GROUP                 CURRENT VERSION   PREFERRED VERSION   MANUAL UPGRADE REQUIRED
+kubeproxy.config.k8s.io   v1alpha1          v1alpha1            no
+kubelet.config.k8s.io     v1beta1           v1beta1             no
+_____________________________________________________________________
+
+```
+
+
+#### Controlplane upgrade
+
+
+Lets drain the controlplane first
+
+```sh
+➜  kubectl drain controlplane --ignore-daemonsets 
+node/controlplane cordoned
+Warning: ignoring DaemonSet-managed Pods: kube-flannel/kube-flannel-ds-9fvg7, kube-system/kube-proxy-lv2dh
+evicting pod kube-system/coredns-7484cd47db-zz4zc
+evicting pod default/blue-69968556cc-5pdrv
+evicting pod kube-system/coredns-7484cd47db-qjx45
+evicting pod default/blue-69968556cc-2rhd6
+pod/blue-69968556cc-2rhd6 evicted
+pod/blue-69968556cc-5pdrv evicted
+pod/coredns-7484cd47db-qjx45 evicted
+pod/coredns-7484cd47db-zz4zc evicted
+node/controlplane drained
+```
+
+
+```sh
+➜  kubectl get no
+NAME           STATUS                     ROLES           AGE   VERSION
+controlplane   Ready,SchedulingDisabled   control-plane   25m   v1.32.0
+node01         Ready                      <none>          24m   v1.32.0
+```
+
+
+Lets follow up the official documentation:
+https://v1-33.docs.kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/
+
+
+Changing the package repository.
+https://v1-33.docs.kubernetes.io/docs/tasks/administer-cluster/kubeadm/upgrading-linux-nodes/#changing-the-package-repository
+
+
+
+1. ```shell
+    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.33/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+    ```
+
+```shell
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.33/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+```
+
+
+
+Lets run the above 02 commands:
+
+```sh
+➜  echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.33/deb/ /" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.33/deb/ /
+```
+
+```sh
+✖ curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.33/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+File '/etc/apt/keyrings/kubernetes-apt-keyring.gpg' exists. Overwrite? (y/N) y
+```
+
+
+
+
+##### Determine which version to upgrade to
+
+```sh
+➜  sudo apt update
+sudo apt-cache madison kubeadm
+Hit:2 https://download.docker.com/linux/ubuntu jammy InRelease                                                                            
+Hit:3 http://archive.ubuntu.com/ubuntu jammy InRelease                                                                                    
+Hit:4 http://archive.ubuntu.com/ubuntu jammy-updates InRelease                                                        
+Hit:1 https://prod-cdn.packages.k8s.io/repositories/isv:/kubernetes:/core:/stable:/v1.33/deb  InRelease        
+Hit:5 http://archive.ubuntu.com/ubuntu jammy-backports InRelease    
+Hit:6 http://security.ubuntu.com/ubuntu jammy-security InRelease
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+86 packages can be upgraded. Run 'apt list --upgradable' to see them.
+   kubeadm | 1.33.5-1.1 | https://pkgs.k8s.io/core:/stable:/v1.33/deb  Packages
+   kubeadm | 1.33.4-1.1 | https://pkgs.k8s.io/core:/stable:/v1.33/deb  Packages
+   kubeadm | 1.33.3-1.1 | https://pkgs.k8s.io/core:/stable:/v1.33/deb  Packages
+   kubeadm | 1.33.2-1.1 | https://pkgs.k8s.io/core:/stable:/v1.33/deb  Packages
+   kubeadm | 1.33.1-1.1 | https://pkgs.k8s.io/core:/stable:/v1.33/deb  Packages
+   kubeadm | 1.33.0-1.1 | https://pkgs.k8s.io/core:/stable:/v1.33/deb  Packages
+
+
+Next version: 1.33.0-1.1  
+
+
+
+```shell
+sudo apt-mark unhold kubeadm && \
+sudo apt-get update && sudo apt-get install -y kubeadm='1.33.0-1.1' && \
+sudo apt-mark hold kubeadm
+```
+
+
+```sh
+➜  sudo apt-mark unhold kubeadm && \
+sudo apt-get update && sudo apt-get install -y kubeadm='1.33.0-1.1' && \
+sudo apt-mark hold kubeadm
+kubeadm was already not on hold.
+Hit:2 https://download.docker.com/linux/ubuntu jammy InRelease                                                                            
+Hit:1 https://prod-cdn.packages.k8s.io/repositories/isv:/kubernetes:/core:/stable:/v1.33/deb  InRelease                                   
+Hit:3 http://security.ubuntu.com/ubuntu jammy-security InRelease                                                                   
+Hit:4 http://archive.ubuntu.com/ubuntu jammy InRelease                      
+Hit:5 http://archive.ubuntu.com/ubuntu jammy-updates InRelease
+Hit:6 http://archive.ubuntu.com/ubuntu jammy-backports InRelease
+Reading package lists... Done
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following packages will be upgraded:
+  kubeadm
+1 upgraded, 0 newly installed, 0 to remove and 85 not upgraded.
+Need to get 12.7 MB of archives.
+After this operation, 3,592 kB of additional disk space will be used.
+Get:1 https://prod-cdn.packages.k8s.io/repositories/isv:/kubernetes:/core:/stable:/v1.33/deb  kubeadm 1.33.0-1.1 [12.7 MB]
+Fetched 12.7 MB in 0s (32.9 MB/s)
+debconf: delaying package configuration, since apt-utils is not installed
+(Reading database ... 20567 files and directories currently installed.)
+Preparing to unpack .../kubeadm_1.33.0-1.1_amd64.deb ...
+Unpacking kubeadm (1.33.0-1.1) over (1.32.0-1.1) ...
+Setting up kubeadm (1.33.0-1.1) ...
+kubeadm set on hold.
+```
+
+
+```sh
+➜  kubeadm version
+kubeadm version: &version.Info{Major:"1", Minor:"33", EmulationMajor:"", EmulationMinor:"", MinCompatibilityMajor:"", MinCompatibilityMinor:"", GitVersion:"v1.33.0", GitCommit:"60a317eadfcb839692a68eab88b2096f4d708f4f", GitTreeState:"clean", BuildDate:"2025-04-23T13:05:48Z", GoVersion:"go1.24.2", Compiler:"gc", Platform:"linux/amd64"}
+```
+
+
+```sh
+➜  sudo kubeadm upgrade plan
+[preflight] Running pre-flight checks.
+[upgrade/config] Reading configuration from the "kubeadm-config" ConfigMap in namespace "kube-system"...
+[upgrade/config] Use 'kubeadm init phase upload-config --config your-config-file' to re-upload it.
+[upgrade] Running cluster health checks
+[upgrade] Fetching available versions to upgrade to
+[upgrade/versions] Cluster version: 1.32.0
+[upgrade/versions] kubeadm version: v1.33.5
+I1026 11:47:11.241910   29241 version.go:261] remote version is much newer: v1.34.1; falling back to: stable-1.33
+[upgrade/versions] Target version: v1.33.5
+[upgrade/versions] Latest version in the v1.32 series: v1.32.9
+
+Components that must be upgraded manually after you have upgraded the control plane with 'kubeadm upgrade apply':
+COMPONENT   NODE           CURRENT   TARGET
+kubelet     controlplane   v1.32.0   v1.32.9
+kubelet     node01         v1.32.0   v1.32.9
+
+Upgrade to the latest version in the v1.32 series:
+
+COMPONENT                 NODE           CURRENT    TARGET
+kube-apiserver            controlplane   v1.32.0    v1.32.9
+kube-controller-manager   controlplane   v1.32.0    v1.32.9
+kube-scheduler            controlplane   v1.32.0    v1.32.9
+kube-proxy                               1.32.0     v1.32.9
+CoreDNS                                  v1.10.1    v1.12.0
+etcd                      controlplane   3.5.16-0   3.5.21-0
+
+You can now apply the upgrade by executing the following command:
+
+        kubeadm upgrade apply v1.32.9
+
+_____________________________________________________________________
+
+Components that must be upgraded manually after you have upgraded the control plane with 'kubeadm upgrade apply':
+COMPONENT   NODE           CURRENT   TARGET
+kubelet     controlplane   v1.32.0   v1.33.5
+kubelet     node01         v1.32.0   v1.33.5
+
+Upgrade to the latest stable version:
+
+COMPONENT                 NODE           CURRENT    TARGET
+kube-apiserver            controlplane   v1.32.0    v1.33.5
+kube-controller-manager   controlplane   v1.32.0    v1.33.5
+kube-scheduler            controlplane   v1.32.0    v1.33.5
+kube-proxy                               1.32.0     v1.33.5
+CoreDNS                                  v1.10.1    v1.12.0
+etcd                      controlplane   3.5.16-0   3.5.21-0
+
+You can now apply the upgrade by executing the following command:
+
+        kubeadm upgrade apply v1.33.5
+
+_____________________________________________________________________
+
+
+The table below shows the current state of component configs as understood by this version of kubeadm.
+Configs that have a "yes" mark in the "MANUAL UPGRADE REQUIRED" column require manual config upgrade or
+resetting to kubeadm defaults before a successful upgrade can be performed. The version to manually
+upgrade to is denoted in the "PREFERRED VERSION" column.
+
+API GROUP                 CURRENT VERSION   PREFERRED VERSION   MANUAL UPGRADE REQUIRED
+kubeproxy.config.k8s.io   v1alpha1          v1alpha1            no
+kubelet.config.k8s.io     v1beta1           v1beta1             no
+_____________________________________________________________________
+```
+
+
+
+```sh
+✖ sudo kubeadm upgrade plan 1.33.0-1.1
+[preflight] Running pre-flight checks.
+[upgrade/config] Reading configuration from the "kubeadm-config" ConfigMap in namespace "kube-system"...
+[upgrade/config] Use 'kubeadm init phase upload-config --config your-config-file' to re-upload it.
+[upgrade] Running cluster health checks
+[upgrade] Fetching available versions to upgrade to
+[upgrade/versions] Cluster version: 1.32.0
+[upgrade/versions] kubeadm version: v1.33.0
+[upgrade/versions] Target version: 1.33.0-1.1
+[upgrade/versions] Latest version in the v1.32 series: 1.33.0-1.1
+
+Components that must be upgraded manually after you have upgraded the control plane with 'kubeadm upgrade apply':
+COMPONENT   NODE           CURRENT   TARGET
+kubelet     controlplane   v1.32.0   1.33.0-1.1
+kubelet     node01         v1.32.0   1.33.0-1.1
+
+Upgrade to the latest version in the v1.32 series:
+
+COMPONENT                 NODE           CURRENT    TARGET
+kube-apiserver            controlplane   v1.32.0    1.33.0-1.1
+kube-controller-manager   controlplane   v1.32.0    1.33.0-1.1
+kube-scheduler            controlplane   v1.32.0    1.33.0-1.1
+kube-proxy                               1.32.0     1.33.0-1.1
+CoreDNS                                  v1.10.1    v1.12.0
+etcd                      controlplane   3.5.16-0   3.5.21-0
+
+You can now apply the upgrade by executing the following command:
+
+        kubeadm upgrade apply 1.33.0-1.1 --allow-experimental-upgrades
+
+_____________________________________________________________________
+
+
+The table below shows the current state of component configs as understood by this version of kubeadm.
+Configs that have a "yes" mark in the "MANUAL UPGRADE REQUIRED" column require manual config upgrade or
+resetting to kubeadm defaults before a successful upgrade can be performed. The version to manually
+upgrade to is denoted in the "PREFERRED VERSION" column.
+
+API GROUP                 CURRENT VERSION   PREFERRED VERSION   MANUAL UPGRADE REQUIRED
+kubeproxy.config.k8s.io   v1alpha1          v1alpha1            no
+kubelet.config.k8s.io     v1beta1           v1beta1             no
+_____________________________________________________________________
+```
+
+
+
+
+
+
+
+```sh
+✖ sudo kubeadm upgrade apply v1.33.0
+[upgrade] Reading configuration from the "kubeadm-config" ConfigMap in namespace "kube-system"...
+[upgrade] Use 'kubeadm init phase upload-config --config your-config-file' to re-upload it.
+[upgrade/preflight] Running preflight checks
+        [WARNING SystemVerification]: cgroups v1 support is in maintenance mode, please migrate to cgroups v2
+[upgrade] Running cluster health checks
+[upgrade/preflight] You have chosen to upgrade the cluster version to "v1.33.0"
+[upgrade/versions] Cluster version: v1.32.0
+[upgrade/versions] kubeadm version: v1.33.0
+[upgrade] Are you sure you want to proceed? [y/N]: y
+[upgrade/preflight] Pulling images required for setting up a Kubernetes cluster
+[upgrade/preflight] This might take a minute or two, depending on the speed of your internet connection
+[upgrade/preflight] You can also perform this action beforehand using 'kubeadm config images pull'
+W1026 13:46:51.085745   26566 checks.go:846] detected that the sandbox image "registry.k8s.io/pause:3.6" of the container runtime is inconsistent with that used by kubeadm.It is recommended to use "registry.k8s.io/pause:3.10" as the CRI sandbox image.
+[upgrade/control-plane] Upgrading your static Pod-hosted control plane to version "v1.33.0" (timeout: 5m0s)...
+[upgrade/staticpods] Writing new Static Pod manifests to "/etc/kubernetes/tmp/kubeadm-upgraded-manifests1825839740"
+[upgrade/staticpods] Preparing for "etcd" upgrade
+[upgrade/staticpods] Renewing etcd-server certificate
+[upgrade/staticpods] Renewing etcd-peer certificate
+[upgrade/staticpods] Renewing etcd-healthcheck-client certificate
+[upgrade/staticpods] Moving new manifest to "/etc/kubernetes/manifests/etcd.yaml" and backing up old manifest to "/etc/kubernetes/tmp/kubeadm-backup-manifests-2025-10-26-13-47-02/etcd.yaml"
+[upgrade/staticpods] Waiting for the kubelet to restart the component
+[upgrade/staticpods] This can take up to 5m0s
+[apiclient] Found 1 Pods for label selector component=etcd
+[upgrade/staticpods] Component "etcd" upgraded successfully!
+[upgrade/etcd] Waiting for etcd to become available
+[upgrade/staticpods] Preparing for "kube-apiserver" upgrade
+[upgrade/staticpods] Renewing apiserver certificate
+[upgrade/staticpods] Renewing apiserver-kubelet-client certificate
+[upgrade/staticpods] Renewing front-proxy-client certificate
+[upgrade/staticpods] Renewing apiserver-etcd-client certificate
+[upgrade/staticpods] Moving new manifest to "/etc/kubernetes/manifests/kube-apiserver.yaml" and backing up old manifest to "/etc/kubernetes/tmp/kubeadm-backup-manifests-2025-10-26-13-47-02/kube-apiserver.yaml"
+[upgrade/staticpods] Waiting for the kubelet to restart the component
+[upgrade/staticpods] This can take up to 5m0s
+[apiclient] Found 1 Pods for label selector component=kube-apiserver
+[upgrade/staticpods] Component "kube-apiserver" upgraded successfully!
+[upgrade/staticpods] Preparing for "kube-controller-manager" upgrade
+[upgrade/staticpods] Renewing controller-manager.conf certificate
+[upgrade/staticpods] Moving new manifest to "/etc/kubernetes/manifests/kube-controller-manager.yaml" and backing up old manifest to "/etc/kubernetes/tmp/kubeadm-backup-manifests-2025-10-26-13-47-02/kube-controller-manager.yaml"
+[upgrade/staticpods] Waiting for the kubelet to restart the component
+[upgrade/staticpods] This can take up to 5m0s
+[apiclient] Found 1 Pods for label selector component=kube-controller-manager
+[upgrade/staticpods] Component "kube-controller-manager" upgraded successfully!
+[upgrade/staticpods] Preparing for "kube-scheduler" upgrade
+[upgrade/staticpods] Renewing scheduler.conf certificate
+[upgrade/staticpods] Moving new manifest to "/etc/kubernetes/manifests/kube-scheduler.yaml" and backing up old manifest to "/etc/kubernetes/tmp/kubeadm-backup-manifests-2025-10-26-13-47-02/kube-scheduler.yaml"
+[upgrade/staticpods] Waiting for the kubelet to restart the component
+[upgrade/staticpods] This can take up to 5m0s
+[apiclient] Found 1 Pods for label selector component=kube-scheduler
+[upgrade/staticpods] Component "kube-scheduler" upgraded successfully!
+[upgrade/control-plane] The control plane instance for this node was successfully upgraded!
+[upload-config] Storing the configuration used in ConfigMap "kubeadm-config" in the "kube-system" Namespace
+[kubelet] Creating a ConfigMap "kubelet-config" in namespace kube-system with the configuration for the kubelets in the cluster
+[upgrade/kubeconfig] The kubeconfig files for this node were successfully upgraded!
+W1026 13:49:31.482539   26566 postupgrade.go:117] Using temporary directory /etc/kubernetes/tmp/kubeadm-kubelet-config1151700154 for kubelet config. To override it set the environment variable KUBEADM_UPGRADE_DRYRUN_DIR
+[upgrade] Backing up kubelet config file to /etc/kubernetes/tmp/kubeadm-kubelet-config1151700154/config.yaml
+[kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+[upgrade/kubelet-config] The kubelet configuration for this node was successfully upgraded!
+[upgrade/bootstrap-token] Configuring bootstrap token and cluster-info RBAC rules
+[bootstrap-token] Configured RBAC rules to allow Node Bootstrap tokens to get nodes
+[bootstrap-token] Configured RBAC rules to allow Node Bootstrap tokens to post CSRs in order for nodes to get long term certificate credentials
+[bootstrap-token] Configured RBAC rules to allow the csrapprover controller automatically approve CSRs from a Node Bootstrap Token
+[bootstrap-token] Configured RBAC rules to allow certificate rotation for all node client certificates in the cluster
+[addons] Applied essential addon: CoreDNS
+[addons] Applied essential addon: kube-proxy
+
+[upgrade] SUCCESS! A control plane node of your cluster was upgraded to "v1.33.0".
+
+[upgrade] Now please proceed with upgrading the rest of the nodes by following the right order.
+```
+
+
+
+Notice kubectl get nodes still shows v1.32.0
+
+```sh
+➜  kubectl get no
+NAME           STATUS                     ROLES           AGE   VERSION
+controlplane   Ready,SchedulingDisabled   control-plane   45m   v1.32.0
+node01         Ready                      <none>          44m   v1.32.0
+```
+
+
+Lets update our kubelet to the same version we updated kubeadm earlier:
+
+Next version: 1.33.0
+
+
+```shell
+sudo apt-mark unhold kubelet kubectl && \
+sudo apt-get update && sudo apt-get install -y kubelet='1.33.0-1.1' kubectl='1.33.0-1.1' && \
+sudo apt-mark hold kubelet kubectl
+```
+
+```sh
+✖ sudo apt-mark unhold kubelet kubectl && \
+sudo apt-get update && sudo apt-get install -y kubelet='1.33.0-1.1' kubectl='1.33.0-1.1' && \
+sudo apt-mark hold kubelet kubectl
+kubelet was already not on hold.
+kubectl was already not on hold.
+Hit:2 https://download.docker.com/linux/ubuntu jammy InRelease                                          
+Hit:1 https://prod-cdn.packages.k8s.io/repositories/isv:/kubernetes:/core:/stable:/v1.33/deb  InRelease 
+Hit:3 http://security.ubuntu.com/ubuntu jammy-security InRelease                 
+Hit:4 http://archive.ubuntu.com/ubuntu jammy InRelease     
+Hit:5 http://archive.ubuntu.com/ubuntu jammy-updates InRelease
+Hit:6 http://archive.ubuntu.com/ubuntu jammy-backports InRelease
+Reading package lists... Done
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following packages will be upgraded:
+  kubectl kubelet
+2 upgraded, 0 newly installed, 0 to remove and 84 not upgraded.
+Need to get 27.5 MB of archives.
+After this operation, 7,090 kB of additional disk space will be used.
+Get:1 https://prod-cdn.packages.k8s.io/repositories/isv:/kubernetes:/core:/stable:/v1.33/deb  kubectl 1.33.0-1.1 [11.7 MB]
+Get:2 https://prod-cdn.packages.k8s.io/repositories/isv:/kubernetes:/core:/stable:/v1.33/deb  kubelet 1.33.0-1.1 [15.9 MB]
+Fetched 27.5 MB in 0s (65.2 MB/s) 
+debconf: delaying package configuration, since apt-utils is not installed
+(Reading database ... 20567 files and directories currently installed.)
+Preparing to unpack .../kubectl_1.33.0-1.1_amd64.deb ...
+Unpacking kubectl (1.33.0-1.1) over (1.32.0-1.1) ...
+Preparing to unpack .../kubelet_1.33.0-1.1_amd64.deb ...
+Unpacking kubelet (1.33.0-1.1) over (1.32.0-1.1) ...
+Setting up kubectl (1.33.0-1.1) ...
+Setting up kubelet (1.33.0-1.1) ...
+kubelet set on hold.
+kubectl set on hold.
+```
+
+
+```sh
+➜  kubectl uncordon controlplane
+node/controlplane uncordoned
+
+➜  kubectl get no
+NAME           STATUS   ROLES           AGE   VERSION
+controlplane   Ready    control-plane   51m   v1.32.0
+node01         Ready    <none>          50m   v1.32.0
+```
+
+
+
+Lets restart kubelet service:
+
+```sh
+➜  systemctl daemon-reload
+➜  systemctl restart kubelet
+```
+
+
+Notice the controlplane version is now 1.33
+
+```sh
+➜  kubectl get no
+NAME           STATUS   ROLES           AGE   VERSION
+controlplane   Ready    control-plane   51m   v1.33.0
+node01         Ready    <none>          50m   v1.32.0
+```
+
+
+#### Node01 upgrade
+
+
+```sh
+✖ kubectl drain node01 --ignore-daemonsets 
+node/node01 already cordoned
+Warning: ignoring DaemonSet-managed Pods: kube-flannel/kube-flannel-ds-pdcjt, kube-system/kube-proxy-5s5n5
+evicting pod kube-system/coredns-674b8bbfcf-8zx22
+evicting pod default/blue-69968556cc-vtwgc
+evicting pod default/blue-69968556cc-4qmwx
+evicting pod default/blue-69968556cc-52hj8
+evicting pod default/blue-69968556cc-7hmjc
+evicting pod kube-system/coredns-674b8bbfcf-2lst4
+evicting pod default/blue-69968556cc-9kb9c
+pod/blue-69968556cc-52hj8 evicted
+pod/blue-69968556cc-9kb9c evicted
+pod/blue-69968556cc-vtwgc evicted
+pod/blue-69968556cc-4qmwx evicted
+pod/blue-69968556cc-7hmjc evicted
+pod/coredns-674b8bbfcf-8zx22 evicted
+pod/coredns-674b8bbfcf-2lst4 evicted
+node/node01 drained
+```
+
+
+```shell
+sudo apt-mark unhold kubelet kubectl && \
+sudo apt-get update && sudo apt-get install -y kubelet='1.33.0-1.1' kubectl='1.33.0-1.1' && \
+sudo apt-mark hold kubelet kubectl
+```
+
+
+```sh
+✖ sudo apt-mark unhold kubeadm && sudo apt-get update && sudo apt-get install -y kubeadm='1.33.0-1.1' && sudo apt-mark hold kubead
+m
+kubeadm was already not on hold.
+Hit:2 https://download.docker.com/linux/ubuntu jammy InRelease                                                                            
+Hit:3 http://archive.ubuntu.com/ubuntu jammy InRelease                                                                                    
+Hit:4 http://archive.ubuntu.com/ubuntu jammy-updates InRelease                                                                       
+Hit:1 https://prod-cdn.packages.k8s.io/repositories/isv:/kubernetes:/core:/stable:/v1.33/deb  InRelease                              
+Hit:5 http://archive.ubuntu.com/ubuntu jammy-backports InRelease    
+Hit:6 http://security.ubuntu.com/ubuntu jammy-security InRelease
+Reading package lists... Done
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+The following packages will be upgraded:
+  kubeadm
+1 upgraded, 0 newly installed, 0 to remove and 102 not upgraded.
+Need to get 12.7 MB of archives.
+After this operation, 3,592 kB of additional disk space will be used.
+Get:1 https://prod-cdn.packages.k8s.io/repositories/isv:/kubernetes:/core:/stable:/v1.33/deb  kubeadm 1.33.0-1.1 [12.7 MB]
+Fetched 12.7 MB in 0s (43.4 MB/s)
+debconf: delaying package configuration, since apt-utils is not installed
+(Reading database ... 17482 files and directories currently installed.)
+Preparing to unpack .../kubeadm_1.33.0-1.1_amd64.deb ...
+Unpacking kubeadm (1.33.0-1.1) over (1.32.0-1.1) ...
+Setting up kubeadm (1.33.0-1.1) ...
+kubeadm set on hold.
+```
+
+```sh
+➜  sudo kubeadm upgrade node
+[upgrade] Reading configuration from the "kubeadm-config" ConfigMap in namespace "kube-system"...
+[upgrade] Use 'kubeadm init phase upload-config --config your-config-file' to re-upload it.
+[upgrade/preflight] Running pre-flight checks
+        [WARNING SystemVerification]: cgroups v1 support is in maintenance mode, please migrate to cgroups v2
+[upgrade/preflight] Skipping prepull. Not a control plane node.
+[upgrade/control-plane] Skipping phase. Not a control plane node.
+[upgrade/kubeconfig] Skipping phase. Not a control plane node.
+W1026 14:07:07.614489   65397 postupgrade.go:117] Using temporary directory /etc/kubernetes/tmp/kubeadm-kubelet-config2950372490 for kubelet config. To override it set the environment variable KUBEADM_UPGRADE_DRYRUN_DIR
+[upgrade] Backing up kubelet config file to /etc/kubernetes/tmp/kubeadm-kubelet-config2950372490/config.yaml
+[kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+[upgrade/kubelet-config] The kubelet configuration for this node was successfully upgraded!
+[upgrade/addon] Skipping the addon/coredns phase. Not a control plane node.
+[upgrade/addon] Skipping the addon/kube-proxy phase. Not a control plane node.
+```
+
+
+
+
+
+```sh
+➜  sudo systemctl daemon-reload
+sudo systemctl restart kubelet
+```
+
+
+
+```sh
+controlplane ~ ➜  kubectl get no
+NAME           STATUS                     ROLES           AGE   VERSION
+controlplane   Ready                      control-plane   59m   v1.33.0
+node01         Ready,SchedulingDisabled   <none>          58m   v1.33.0
+
+controlplane ~ ➜  kubectl uncordon node01
+node/node01 uncordoned
+
+controlplane ~ ➜  kubectl get no
+NAME           STATUS   ROLES           AGE   VERSION
+controlplane   Ready    control-plane   59m   v1.33.0
+node01         Ready    <none>          59m   v1.33.0
+```
+
+
+
+
+
+## kubernetes backup
+
+
+I good strategy to backup all kubernetes resources is:
+
+```sh
+kubectl get all --all-namespaces -o yaml > all-deploy-resources-backup.yaml
+```
+
+
+
+#### ETCD
+
+```sh
+etcdctl snapshot save snapshot-etcd.db
+etcdctl snapshot status snapshot-etcd.db # to see the status of the snapshot
+# to restore the backup snapshot
+systemctl stop kube-apiserver # to restore the backup we need to stop kube-apiserver 
+etcdctl restore snapshot.db --data-dir /dir-where-your-backup-file-is-stored
+# then edit your etcd.service config file and set --data-dir=/dir-where-your-backup-file-is-stored, new users won't have access to the new cluster by default.
+systemctl daemon-reload
+systemctl restart etcd 
+systemctl start kube-apiserver
+```
+
+For each etcdctl command we need specify the endpoints, cacert, cert and key.
+
+```sh
+ectcdctl snapshot save snapshot.db \
+--endpoints=htts://127.0.0.1:2379 \
+--cacert=/etc/etcd/ca.crt \
+--cert=/etc/etcd/etcd-server.crt \
+--key=/etc/etcd/etcd-server.key
+```
+
+
+# **WORKING WITH ETCDCTL & ETCDUTL**
+
+`etcdctl` is a command line client for [etcd](https://github.com/coreos/etcd).
+
+In all our Kubernetes hands-on labs, the ETCD key-value database is deployed as a static pod on the master. The version used is v3.
+
+To make use of `etcdctl` for tasks such as backup, verify it is running on API version 3.x:
+
+etcdctl version
+
+Example:
+
+controlplane ~ ➜ etcdctl version etcdctl version: 3.5.16 API version: 3.5
+
+## **Backing Up ETCD**
+
+### Using `etcdctl` (Snapshot-based Backup)
+
+To take a snapshot from a running etcd server, use:
+
+ETCDCTL_API=3 etcdctl \ --endpoints=[https://127.0.0.1:2379](https://127.0.0.1:2379/) \ --cacert=/etc/kubernetes/pki/etcd/ca.crt \ --cert=/etc/kubernetes/pki/etcd/server.crt \ --key=/etc/kubernetes/pki/etcd/server.key \ snapshot save /backup/etcd-snapshot.db
+
+### Required Options
+
+- `--endpoints` points to the etcd server (default: localhost:2379)
+- `--cacert` path to the CA cert
+- `--cert` path to the client cert
+- `--key` path to the client key
+
+### Using `etcdutl` (File-based Backup)
+
+For offline file-level backup of the data directory:
+
+```sh
+etcdutl backup \ --data-dir /var/lib/etcd \ --backup-dir /backup/etcd-backup
+```
+
+This copies the etcd backend database and WAL files to the target location.
+
+
+### Checking Snapshot Status
+
+You can inspect the metadata of a snapshot file using:
+
+etcdctl snapshot status /backup/etcd-snapshot.db \ --write-out=table
+
+This shows details like size, revision, hash, total keys, etc. It is helpful to verify snapshot integrity before restore.
+
+## **Restoring ETCD**
+
+### Using `etcdutl`
+
+To restore a snapshot to a new data directory:
+
+etcdutl snapshot restore /backup/etcd-snapshot.db \ --data-dir /var/lib/etcd-restored
+
+To use a backup made with `etcdutl backup`, simply copy the backup contents back into `/var/lib/etcd` and restart etcd.
+
+## **Notes**
+
+- `etcdctl snapshot save` is used for creating `.db` snapshots from live etcd clusters.
+- `etcdctl snapshot status` provides metadata information about the snapshot file.
+- `etcdutl snapshot restore` is used to restore a `.db` snapshot file.
+- `etcdutl backup` performs a raw file-level copy of etcd’s data and WAL files without needing etcd to be running.
+
+
+
+### checking etcd version
+
+```sh
+➜  kubectl describe po -n kube-system etcd-controlplane | grep -i image:
+    Image:         registry.k8s.io/etcd:3.6.4-0
+```
+
+
+
+
+# Kubernetes Security
 
 
