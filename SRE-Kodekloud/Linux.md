@@ -236,4 +236,291 @@ systemctl enable my_app
 ## VIM
 
 
+## Network troubleshooting
+
+
+### Tools to troubleshoot DNS issue
+
+- nslookup
+- dig
+
+
+
+## Storage
+
+### Disk partitions
+
+
+- Blockstorage
+- SSD (scsi disk number 8 in lsblk MAJ)
+
+To see all volumes details:
+
+```sh
+$ lsblk
+```
+
+OR
+
+```sh
+$ ls -l /dev/ | grep "^b"
+```
+
+OR
+
+```sh
+sudo fdisk -l /dev/sda
+```
+
+OR
+
+```sh
+gdisk /dev/sdb
+```
+
+
+Types of partition:
+
+- primary partition
+- extended partition (can not be used without logical part.)
+- logical partition
+
+
+MBR - master boot record 
+GPT - GUID Partition table (new partition scheme support 2TB)
+
+
+### Lab partitions
+
+
+```sh
+ ➜  lsblk
+NAME    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+vda     252:0    0   10G  0 disk 
+├─vda1  252:1    0  9.9G  0 part /
+├─vda14 252:14   0    4M  0 part 
+└─vda15 252:15   0  106M  0 part /boot/efi
+vdb     252:16   0    1M  0 disk /mnt/app-config
+vdc     252:32   0    1M  0 disk 
+vdd     252:48   0    2G  0 disk 
+vde     252:64   0    1G  0 disk 
+vdf     252:80   0    1G  0 disk 
+```
+
+Notice we have 06 disks and 03 partitions.
+Notice the size of vdd is 2G
+The MAJOR number for devices starting with vd is 252
+
+Creating a partition of 500M from /dev/vde as vde1
+
+```sh
+➜  sudo gdisk /dev/vde
+GPT fdisk (gdisk) version 1.0.8
+
+Partition table scan:
+  MBR: not present
+  BSD: not present
+  APM: not present
+  GPT: not present
+
+Creating new GPT entries in memory.
+
+Command (? for help): n
+Partition number (1-128, default 1): 1
+First sector (34-2097118, default = 2048) or {+-}size{KMGTP}: 
+Last sector (2048-2097118, default = 2097118) or {+-}size{KMGTP}: +500M
+Current type is 8300 (Linux filesystem)
+Hex code or GUID (L to show codes, Enter = 8300): 8300
+Changed type of partition to 'Linux filesystem'
+
+Command (? for help): w
+
+Final checks complete. About to write GPT data. THIS WILL OVERWRITE EXISTING
+PARTITIONS!!
+
+Do you want to proceed? (Y/N): Y
+OK; writing new GUID partition table (GPT) to /dev/vde.
+The operation has completed successfully.
+```
+
+
+Lets check the new part created
+
+```sh
+➜  lsblk
+NAME    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+vda     252:0    0   10G  0 disk 
+├─vda1  252:1    0  9.9G  0 part /
+├─vda14 252:14   0    4M  0 part 
+└─vda15 252:15   0  106M  0 part /boot/efi
+vdb     252:16   0    1M  0 disk /mnt/app-config
+vdc     252:32   0    1M  0 disk 
+vdd     252:48   0    2G  0 disk 
+vde     252:64   0    1G  0 disk 
+└─vde1  252:65   0  500M  0 part 
+vdf     252:80   0    1G  0 disk 
+```
+
+
+
+## Filesystem in linux
+
+
+We must create a filesystem before saving data into the partition.
+
+- ext2
+- ext3
+- ext4
+- xfs
+
+```sh
+mkfs.ext4 /dev/sdb1
+mkdir /mnt/ext4
+mount /dev/sdb1 /mnt/ext4
+mount | grep /dev/sdb1
+df -hP | grep /dev/sdb1
+```
+
+
+
+Fstab
+
+Example of fstab line configuration:
+
+```
+/dev/dbb1   /mnt/ext4    ext4    rw    0 0 
+```
+
+
+
+### Lab Filesystems
+
+
+```sh
+➜  lsblk
+NAME    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+vda     252:0    0   10G  0 disk 
+├─vda1  252:1    0  9.9G  0 part /
+├─vda14 252:14   0    4M  0 part 
+└─vda15 252:15   0  106M  0 part /boot/efi
+vdb     252:16   0    1M  0 disk /mnt/app-config
+vdc     252:32   0    1M  0 disk 
+vdd     252:48   0    2G  0 disk /mnt/backups
+vde     252:64   0    1G  0 disk 
+vdf     252:80   0    1G  0 disk 
+```
+
+
+Notice we have vdd mounted as /mnt/backups and so we have a filesystem there
+Notice that vde is not mounted so might not have filesystem.
+
+We can also use:
+
+```sh
+➜  df -h
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs           143M  4.4M  139M   4% /run
+/dev/vda1       9.6G  1.1G  8.5G  11% /
+tmpfs           712M     0  712M   0% /dev/shm
+tmpfs           5.0M     0  5.0M   0% /run/lock
+/dev/vda15      105M  6.1M   99M   6% /boot/efi
+/dev/vdb        1.0M  1.0M     0 100% /mnt/app-config
+tmpfs           143M     0  143M   0% /run/user/1002
+/dev/vdd        2.0G   24K  1.9G   1% /mnt/backups
+```
+
+
+The command `blkid` is also helpful to identify partitions with filesystems:
+
+```sh
+➜  sudo blkid
+/dev/vdb: BLOCK_SIZE="2048" UUID="2026-02-09-07-01-12-00" LABEL="cfgdata" TYPE="iso9660"
+/dev/vdc: BLOCK_SIZE="2048" UUID="2026-02-09-07-01-13-00" LABEL="cidata" TYPE="iso9660"
+/dev/vda15: LABEL_FATBOOT="UEFI" LABEL="UEFI" UUID="5CEC-7AE6" BLOCK_SIZE="512" TYPE="vfat" PARTUUID="c24f5b29-988e-4d72-9c67-8e6bcfd056f5"
+/dev/vda1: LABEL="cloudimg-rootfs" UUID="ea6b38a1-cc67-4624-8a47-dcb6190f25cd" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="5667eb4f-2bed-4312-87ad-064cc7f2be47"
+/dev/vdd: UUID="6c4a0eaa-59c4-4c9f-ba43-bf47b04c9703" BLOCK_SIZE="4096" TYPE="ext2"
+/dev/vda14: PARTUUID="8e4651e7-28fe-4315-a8bf-22d4152044b9"
+```
+
+
+Notice that /dev/vdd has filesystem ext2
+
+```sh
+➜  sudo blkid /dev/vdd
+/dev/vdd: UUID="6c4a0eaa-59c4-4c9f-ba43-bf47b04c9703" BLOCK_SIZE="4096" TYPE="ext2"
+```
+
+
+Lets Create an `ext4` filesystem on the disk `/dev/vde` and mount it at `/mnt/data`
+
+
+```sh
+➜  lsblk
+NAME    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+vda     252:0    0   10G  0 disk 
+├─vda1  252:1    0  9.9G  0 part /
+├─vda14 252:14   0    4M  0 part 
+└─vda15 252:15   0  106M  0 part /boot/efi
+vdb     252:16   0    1M  0 disk /mnt/app-config
+vdc     252:32   0    1M  0 disk 
+vdd     252:48   0    2G  0 disk /mnt/backups
+vde     252:64   0    1G  0 disk 
+vdf     252:80   0    1G  0 disk 
+
+➜  sudo mkfs.ext4 /dev/vde
+mke2fs 1.46.5 (30-Dec-2021)
+Discarding device blocks: done                            
+Creating filesystem with 262144 4k blocks and 65536 inodes
+Filesystem UUID: b5ea62e9-7524-41fb-97f9-af98f2078590
+Superblock backups stored on blocks: 
+        32768, 98304, 163840, 229376
+
+Allocating group tables: done                            
+Writing inode tables: done                            
+Creating journal (8192 blocks): done
+Writing superblocks and filesystem accounting information: done
+
+
+➜  sudo mkdir /mnt/data
+
+➜  sudo mount /dev/vde /mnt/data/
+
+bob@caleston-lp10 ~ ➜  lsblk
+NAME    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+vda     252:0    0   10G  0 disk 
+├─vda1  252:1    0  9.9G  0 part /
+├─vda14 252:14   0    4M  0 part 
+└─vda15 252:15   0  106M  0 part /boot/efi
+vdb     252:16   0    1M  0 disk /mnt/app-config
+vdc     252:32   0    1M  0 disk 
+vdd     252:48   0    2G  0 disk /mnt/backups
+vde     252:64   0    1G  0 disk /mnt/data
+vdf     252:80   0    1G  0 disk 
+```
+
+
+Lets add this partition to our fstab
+
+
+```sh
+➜  sudo vi /etc/fstab 
+```
+
+
+```
+/dev/vde        /mnt/data       ext4    rw      0 0 
+```
+
+
+
+## External Storage - DAS NAS and SAN
+
+
+- DAS - Direct attached storage
+- NAS - Network attached storage
+- SAN - Storage Area network
+
+
+### NFS filesystem
+
 

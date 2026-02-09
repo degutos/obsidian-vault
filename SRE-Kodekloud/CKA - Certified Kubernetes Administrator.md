@@ -4803,6 +4803,94 @@ kubectl get all --all-namespaces -o yaml > all-deploy-resources-backup.yaml
 
 #### ETCD
 
+To check the etcd version check the pod if the etcd runs as a pod in the cluster within kube-system namespace
+
+```sh
+ ➜  kubectl describe po -n kube-system etcd-controlplane | grep -i image:
+    Image:         registry.k8s.io/etcd:3.6.4-0
+```
+
+
+To check the etcd port and address it's serving the etcd
+
+```sh
+$ kubectl describe po -n kube-system etcd-controlplane | grep "\--listen-client-urls"
+      --listen-client-urls=https://127.0.0.1:2379,https://192.168.227.163:2379
+```
+
+
+To check the etcd certificate file
+
+```sh
+➜  kubectl describe po -n kube-system etcd-controlplane | grep "\--cert-file"
+      --cert-file=/etc/kubernetes/pki/etcd/server.crt
+```
+
+
+To check the etcd CA Certificate
+
+```sh
+➜  kubectl describe po -n kube-system etcd-controlplane | grep "\--trusted-ca-file"
+      --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+```
+
+
+### Generate a backup of etcd
+
+```sh
+$ etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --c
+ert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key snapshot save /opt/sna
+pshot-pre-boot.db
+```
+
+With etcdctl we can generate a backup, we are saving the snapshot into /opt/snapshot-pre-boot.db. 
+Notice that we need to set:
+```
+--entdpoints=
+--cacert=
+--cert=
+--key=
+```
+
+
+Get all these details investigating the etcd pod with 
+
+```sh
+kubectl describe po -n kube-system etcd-controlplane
+```
+
+
+
+## Restore a backup to a new directory
+
+Let restore the backup from /opt/snapshot-pre-boot.db to a new directory /var/lib/etc-from-backup
+
+```sh
+➜  etcdutl snapshot restore /opt/snapshot-pre-boot.db --data-dir /var/lib/etcd-from-backu
+p 
+```
+
+
+Now because we restore the snapshot to a new directory we need to configure /etc/kubernetes/manifests/etcd.yaml
+The goal is to change the `hostPath` for the volume called `etcd-data` from old directory `/var/lib/etcd` to the new directory `/var/lib/etcd-from-backup`:
+
+
+```yaml
+  volumes:
+  - hostPath:
+      path: /etc/kubernetes/pki/etcd
+      type: DirectoryOrCreate
+    name: etcd-certs
+  - hostPath:
+      path: /var/lib/etcd-from-backup
+      type: DirectoryOrCreate
+    name: etcd-data
+```
+
+
+### See other sample commands
+
+
 ```sh
 etcdctl snapshot save snapshot-etcd.db
 etcdctl snapshot status snapshot-etcd.db # to see the status of the snapshot
@@ -4902,7 +4990,1065 @@ To use a backup made with `etcdutl backup`, simply copy the backup contents bac
 
 
 
+---
+
 
 # Kubernetes Security
 
 
+- Kubernetes requires authentication to access kube-api.
+- Users can authenticate in few different ways like based token file, Certificates or 3rd part user database like LDAP.
+- Based token file is not the recommended way not be used in production.
+
+
+### TLS Certificates
+
+```sh
+openssh genrsa -out my-bank.key 1024
+openssh rsa -in my-bank.key -pubout > mybank.key
+
+```
+
+
+### Generating TLS certificates for the Kubernetes cluster
+
+We have many different tools to generate TLS certificates, like:
+- Easyrsa
+- Openssl
+- CFSSL
+- etc
+
+#### Generating Certificate Authority (CA)
+
+
+First we create a private key with openssl.
+
+```sh
+$ openssl genrsa -out ca.key 2048
+```
+
+This will generate a ca.key file. Then we create a ca.csr from the key we created to create a sign request.
+
+```sh
+$ openssl req -new -key ca.key -subj "/CN=KUBERNETES-CA" -out ca-csr
+```
+
+This will generate a file ca.csr. In this Certificate Signing Request has all the details except the signature.
+To generate the sign certificate we run:
+
+```sh
+$ openssl x509 -req -in ca.csr -signkey ca.key -out ca.crt
+```
+
+The certificate CA is self signed by the CA authority. For all other certificates we will use this CA key pair here to sign it. 
+
+
+
+
+#### Client Certificates
+
+##### Admin user
+
+Generate keys
+
+```sh
+$ openssl genrsa -out admin.key 2048
+```
+
+
+Generate Certificate signing request
+
+```sh
+$ openssl req -new -key admin.key -sub \
+	"/CN=kube-admnin" -out admin.csr
+```
+
+
+Sign Certificates
+
+```sh
+openssl x509 -req -in admin.csr -CA ca.crt -CAkey ca.key -out=admin.crt
+```
+
+
+
+After creating an Admin Certificate you can create:
+- Scheduler certificate
+- Controller manager certificate
+- Kube-proxy certificate
+
+
+#### Server Certificates
+
+##### ETCD-Server
+
+- We create certificate for ETCD database and also for each of its peers.
+- We configure the ETCD.yaml file to use the new created Certificate
+- We also need the CA certificate mentioned to validate the configuration.
+
+
+##### Kube-API server
+
+- We create kube-api server certificate also
+- Every resource in the cluster has to talk with kube-api
+- kube-api server is the center where everyone talks to
+- People usually call kube-api as kubernetes
+
+
+```
+$ openssl genrsa -out apiserver.key 2048
+$ openssl req -new -key apiserver.key
+-sub "/CN=kube-apiserver" -out apiserver 
+$ opsnssl x509 -req -in apiserver.csr -CA ca.crt -CAkey ca.key
+CAcreateserial -out apiserver.crt -extension v3_req - extfile openssl.cnf -days 1000
+```
+
+
+
+
+### How to view TLS Certificates Details 
+
+
+Check how the cluster was setup, if it was manually or kubeadm.
+- Hardway (manually): /etc/systemd/system/kube-apiserver.service -> this is a service in the server
+- Kubeadm: /etc/kubernetes/manifests/kube-apiserver.yaml -> this is a pod in kubernetes cluster
+
+```sh
+$ cat /etc/kubernetes/manifests/kube-apiserver.yaml
+...
+- --client-ca-file=/etc/kubernetes/pki/ca-crt
+- --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+- -etcd.certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+- --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+  
+- --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+- --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
+  
+- --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+- --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+```
+
+
+### Lets check further information about the certificate itself
+
+
+```
+/etc/kubernetes/pki/apiserver.crt
+```
+
+
+```sh
+$ openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text -noout
+```
+
+
+Check for:
+- CN Name
+- ALT Names
+- Organization
+- Issuer
+- Expiration date
+
+
+### Check service logs
+
+If your cluster was built manually with services check for:
+
+```sh
+$ journalctl -u etcd.service -l
+```
+
+
+### Check for pods logs
+
+If your cluster was created with kubeadm check for:
+
+```sh
+$ kubectl logs etcd-master
+```
+
+
+If kube-api or etcd services are down we won't have access to kubectl commands, in that case we may need to look at the container level of logs.
+
+```sh
+$ crictl ps -a
+$ critctl logs [container-id]
+```
+
+
+
+### Lab - View certificate details
+
+
+To check the certificate of the kube-api server:
+
+```sh
+$ kubectl describe po -n kube-system kube-apiserver-controlplane | grep "\--tls-cert-file"
+      --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+```
+
+
+OR
+
+```sh
+$  cat /etc/kubernetes/manifests/kube-apiserver.yaml | grep "\--tls-cert-file"
+    - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+```
+
+
+To check the certificate to kube-apiserver authenticate as a client to ETCD server:
+
+```sh
+ $ cat /etc/kubernetes/manifests/kube-apiserver.yaml | grep "\etcd-certfile"
+    - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+```
+
+
+To identify the key used to authenticate kube-apiserver to kubelet server:
+
+```sh
+ $ cat /etc/kubernetes/manifests/kube-apiserver.yaml | grep "\--kubelet-client-key"
+    - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
+```
+
+
+To identify the ETCD server certificate used to host ETCD server
+
+```sh
+$ cat /etc/kubernetes/manifests/etcd.yaml | grep "\--cert-file"
+    - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+```
+
+
+To identify the ETCD server CA Root Certificate used to serve ETCD Server
+
+Note: the ETCD can have its own CA, so this may be a different CA certificate than the one used by kube-apiserver
+
+```sh
+$ cat /etc/kubernetes/manifests/etcd.yaml | grep "\--trusted-ca-file"
+    - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+```
+
+
+What is the common Name (CN) configured on the kube api server certificate?
+
+```sh
+openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text -noout
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 1449194296080473095 (0x141c9288bc661c07)
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: CN = kubernetes
+        Validity
+            Not Before: Dec 18 09:48:51 2025 GMT
+            Not After : Dec 18 09:53:51 2026 GMT
+        Subject: CN = kube-apiserver
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (2048 bit)
+                Modulus:
+                    00:a6:40:76:d5:d5:22:c8:50:78:4e:b3:70:40:71:
+REDACTED
+                    95:79:2c:2d:bd:fc:5b:ee:ad:1f:af:50:2b:f6:8d:
+                    2e:97
+                Exponent: 65537 (0x10001)
+        X509v3 extensions:
+            X509v3 Key Usage: critical
+                Digital Signature, Key Encipherment
+            X509v3 Extended Key Usage: 
+                TLS Web Server Authentication
+            X509v3 Basic Constraints: critical
+                CA:FALSE
+            X509v3 Authority Key Identifier: 
+                D9:3A:E5:10:2C:D1:C8:99:BC:7C:43:DD:A2:D5:62:FA:3E:66:F0:17
+            X509v3 Subject Alternative Name: 
+                DNS:controlplane, DNS:kubernetes, DNS:kubernetes.default, DNS:kubernetes.default.svc, DNS:kubernetes.default.svc.cluster.local, IP Address:172.20.0.1, IP Address:192.168.187.164
+    Signature Algorithm: sha256WithRSAEncryption
+    Signature Value:
+        5d:67:03:9c:46:cc:cd:95:ea:dc:60:d9:bf:5e:f5:8f:a6:49:
+REDACTED
+        87:b8:db:9c
+```
+
+
+Look for: `Subject: CN = kube-apiserver`
+The `--noout` parameter will not display your certificate hash
+
+
+What is the name of the CA who issued the kube api server certificate
+
+```sh
+$ openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text -noout | grep "Issuer"
+        Issuer: CN = kubernetes
+```
+
+
+
+Check for the Alternative Names configured on the kube-apiserver certificate:
+
+```sh
+$ openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text -noout | grep -A1 "Alternativ
+e Name" 
+            X509v3 Subject Alternative Name: 
+                DNS:controlplane, DNS:kubernetes, DNS:kubernetes.default, DNS:kubernetes.default.svc, DNS:kubernetes.default.svc.cluster.local, IP Address:172.20.0.1, IP Address:192.168.187.164
+```
+
+
+
+Check the CN configured in the ETCD Certificate:
+
+```sh
+$ openssl x509 -in /etc/kubernetes/pki/etcd/server.crt -text -noout
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 3254738982573358205 (0x2d2b27dc3ce6bc7d)
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: CN = etcd-ca
+        Validity
+            Not Before: Dec 18 09:48:51 2025 GMT
+            Not After : Dec 18 09:53:51 2026 GMT
+        Subject: CN = controlplane
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                Public-Key: (2048 bit)
+                Modulus:
+                    00:98:f6:2c:9c:b7:64:dc:f2:ad:3a:9b:df:a2:e2:
+REDACTED
+                    f5:25
+                Exponent: 65537 (0x10001)
+        X509v3 extensions:
+            X509v3 Key Usage: critical
+                Digital Signature, Key Encipherment
+            X509v3 Extended Key Usage: 
+                TLS Web Server Authentication, TLS Web Client Authentication
+            X509v3 Basic Constraints: critical
+                CA:FALSE
+            X509v3 Authority Key Identifier: 
+                FD:D5:7A:EE:CA:D5:22:DD:C6:A2:CD:5C:33:98:2B:2B:4B:8D:67:69
+            X509v3 Subject Alternative Name: 
+                DNS:controlplane, DNS:localhost, IP Address:192.168.187.164, IP Address:127.0.0.1, IP Address:0:0:0:0:0:0:0:1
+    Signature Algorithm: sha256WithRSAEncryption
+    Signature Value:
+        d3:0e:94:f1:15:c3:14:3b:25:62:5e:91:d2:9a:85:a0:ea:1e:
+REDACTED
+        d6:0f:fe:03
+```
+
+Check for `Subject: CN = controlplane`
+
+
+Check for issued date for the kube-apiserver
+
+```sh
+$ openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text -noout | grep "Validity" -A2
+        Validity
+            Not Before: Dec 18 09:48:51 2025 GMT
+            Not After : Dec 18 09:53:51 2026 GMT
+```
+
+
+Check for issued date for the Root Certificate valid for:
+
+File: /etc/kubernetes/pki/ca.crt
+
+```sh
+$  openssl x509 -in /etc/kubernetes/pki/ca.crt -text -noout | grep "Validity" -A2
+        Validity
+            Not Before: Dec 18 09:48:51 2025 GMT
+            Not After : Dec 16 09:53:51 2035 GMT
+```
+
+
+
+### Certificate API 
+
+
+If a new user join our team we can create a pair of certificate and private key
+
+```sh
+$ ls
+akshay.csr  akshay.key
+```
+
+
+```
+$  cat akshay.csr 
+-----BEGIN CERTIFICATE REQUEST-----
+MIICVjCCAT4CAQAwETEPMA0GA1UEAwwGYWtzaGF5MIIBIjANBgkqhkiG9w0BAQEF
+REDACTED
+Ibp53vwhHAfNGfJjvEJj4qq6NqV7ib92iS0=
+-----END CERTIFICATE REQUEST-----
+
+$  cat akshay.key 
+-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDKk3oSLG1c2LbB
+REDACTED
+xI1HPe2B3mYNd4OBna79wI169XqC5JNwk/qkKNkCi19qXyha51azvHTetaL8mH8p
+5c6ezxnvSVo3bthdX6n8m1N3
+-----END PRIVATE KEY-----
+```
+
+
+#### Create a CertificateSigningRequest
+
+
+```sh
+cat akshay.csr | base64 -w 0
+LS0tLS1CRUdJTiBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0KTUlJQ1ZqQ0NBVDRDQVFBd0VURVBNQTBHQTFVRUF3d0dZV3R6YUdGNU1JSUJJakFOQmdrcWhraUc5dzBCQVFFRgpBQU9DQVE4QU1JSUJDZ0tDQVFFQXlwTjZFaXh0WE5pMndkTVJqODdEcDAzYWY2bmwzWTFHSFlSM0JRemErNUhjCkF6dUthb3doUGlHYkdRYjhFWWFoUW1ZNll5V0UwcDdndXNURi9jUmZES1dRcVhhTjl6dldZZFM3dXM4T08wek0KQ3RZUzVyTFhhendNZW5ncHA4TVpQbENxZGZZK2FXNHB2RUZDYXovQjFSVjRSZHRpQVVkdkx6VmhsY3BLNEhIbAp2VTZqQ0V3NlY1YjlPdlBYV0FoQ2NaeDJwNE1OTEpadGdIeGlKaWtpWUV0NksrTVFKYWRnUjdhRzVvcVpSb1NtCnJrZ1RodElnWHJLQkpoMkhDSFh3Qm93OXF5cytUR21Rc2NkZEFSMnJjWEtIbXVrRjlLbkxITmtxd1QxMkY0dDIKbHArdnY1V2U2MFZYVmdyR0RMSWVLVFJZVXczVStKeS9NeUwrM0d1ZGd3SURBUUFCb0FBd0RRWUpLb1pJaHZjTgpBUUVMQlFBRGdnRUJBSTFjRTFSclp2b3E2LzdvY21PcFRIODNSQjdDRmlzWGxOQXZOakkrZlZ6UFFGN0VJZFNiCm9WUndFRytNdGFrUzF2aWNXVWdUaWRVM2IvV3pUa2RrVXptcnpFRVd2Uk9MVE8rbS9ndDZWVGM1clR3VjJwQTcKajBjVy9tR2ZnT3Q0SDNaak9yeDl1VzAxZmpBSDBlV1IwZk1QRWtDcytMQWJBUVpIUkE4TElidCsyaTFHWjNtTgo0NkNzME0yUkRKWGh4ZnlyUzdVVGVLbjEvUVRIeDhESVdIdlNqRWpTVWZ1MkgxeENWS0NOUXpoNzlqdmdZWktJClRDUno4a1VQWkRPU1V2V1BWSVVnT3oxYTliT1pieWM4aWhsOWVDWjlERTA3ZE8wQ2VQUC9aYXBFZGRLU0ttWDIKSWJwNTN2d2hIQWZOR2ZKanZFSmo0cXE2TnFWN2liOTJpUzA9Ci0tLS0tRU5EIENFUlRJRklDQVRFIFJFUVVFU1QtLS0tLQo=
+```
+
+
+Create an Yaml file 
+
+```yaml
+cat akshay-csr.yml 
+---
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  name: akshay
+spec:
+  groups:
+  - system:authenticated
+  request: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0KTUlJQ1ZqQ0NBVDRDQVFBd0VURVBNQTBHQTFVRUF3d0dZV3R6YUdGNU1JSUJJakFOQmdrcWhraUc5dzBCQVFFRgpBQU9DQVE4QU1JSUJDZ0tDQVFFQXlwTjZFaXh0WE5pMndkTVJqODdEcDAzYWY2bmwzWTFHSFlSM0JRemErNUhjCkF6dUthb3doUGlHYkdRYjhFWWFoUW1ZNll5V0UwcDdndXNURi9jUmZES1dRcVhhTjl6dldZZFM3dXM4T08wek0KQ3RZUzVyTFhhendNZW5ncHA4TVpQbENxZGZZK2FXNHB2RUZDYXovQjFSVjRSZHRpQVVkdkx6VmhsY3BLNEhIbAp2VTZqQ0V3NlY1YjlPdlBYV0FoQ2NaeDJwNE1OTEpadGdIeGlKaWtpWUV0NksrTVFKYWRnUjdhRzVvcVpSb1NtCnJrZ1RodElnWHJLQkpoMkhDSFh3Qm93OXF5cytUR21Rc2NkZEFSMnJjWEtIbXVrRjlLbkxITmtxd1QxMkY0dDIKbHArdnY1V2U2MFZYVmdyR0RMSWVLVFJZVXczVStKeS9NeUwrM0d1ZGd3SURBUUFCb0FBd0RRWUpLb1pJaHZjTgpBUUVMQlFBRGdnRUJBSTFjRTFSclp2b3E2LzdvY21PcFRIODNSQjdDRmlzWGxOQXZOakkrZlZ6UFFGN0VJZFNiCm9WUndFRytNdGFrUzF2aWNXVWdUaWRVM2IvV3pUa2RrVXptcnpFRVd2Uk9MVE8rbS9ndDZWVGM1clR3VjJwQTcKajBjVy9tR2ZnT3Q0SDNaak9yeDl1VzAxZmpBSDBlV1IwZk1QRWtDcytMQWJBUVpIUkE4TElidCsyaTFHWjNtTgo0NkNzME0yUkRKWGh4ZnlyUzdVVGVLbjEvUVRIeDhESVdIdlNqRWpTVWZ1MkgxeENWS0NOUXpoNzlqdmdZWktJClRDUno4a1VQWkRPU1V2V1BWSVVnT3oxYTliT1pieWM4aWhsOWVDWjlERTA3ZE8wQ2VQUC9aYXBFZGRLU0ttWDIKSWJwNTN2d2hIQWZOR2ZKanZFSmo0cXE2TnFWN2liOTJpUzA9Ci0tLS0tRU5EIENFUlRJRklDQVRFIFJFUVVFU1QtLS0tLQo="
+  signerName: kubernetes.io/kube-apiserver-client
+  usages:
+  - client auth
+```
+
+
+Run the new yaml file with kubectl 
+
+```sh
+$ kubectl apply -f akshay-csr.yml
+certificatesigningrequest.certificates.k8s.io/akshay created
+```
+
+
+Then we can check the object 
+
+```sh
+kubectl get csr
+NAME        AGE    SIGNERNAME                                    REQUESTOR                  REQUESTEDDURATION   CONDITION
+akshay      109s   kubernetes.io/kube-apiserver-client           kubernetes-admin           <none>              Pending
+csr-8lxw9   22m    kubernetes.io/kube-apiserver-client-kubelet   system:node:controlplane   <none>              Approved,Issued
+```
+
+Notice that the new created CSR is in Pending state
+
+
+Lets now approve the new certificate request
+
+```sh
+$ kubectl certificate approve akshay
+certificatesigningrequest.certificates.k8s.io/akshay approved
+```
+
+
+
+Check again the state approved
+
+```sh
+$ kubectl get csr
+NAME        AGE     SIGNERNAME                                    REQUESTOR                  REQUESTEDDURATION   CONDITION
+akshay      4m11s   kubernetes.io/kube-apiserver-client           kubernetes-admin           <none>              Approved,Issued
+csr-8lxw9   24m     kubernetes.io/kube-apiserver-client-kubelet   system:node:controlplane   <none>              Approved,Issued
+```
+
+
+When a new request comes in we can see it with kubectl command
+
+```sh
+$ kubectl get csr
+NAME          AGE     SIGNERNAME                                    REQUESTOR                  REQUESTEDDURATION   CONDITION
+agent-smith   11s     kubernetes.io/kube-apiserver-client           agent-x                    <none>              Pending
+akshay        4m28s   kubernetes.io/kube-apiserver-client           kubernetes-admin           <none>              Approved,Issued
+csr-8lxw9     25m     kubernetes.io/kube-apiserver-client-kubelet   system:node:controlplane   <none>              Approved,Issued
+```
+
+
+We can see more details like group using kubectl command preferable with YAML format
+
+```sh
+kubectl get csr agent-smith -o yaml
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  creationTimestamp: "2025-12-18T14:35:08Z"
+  name: agent-smith
+  resourceVersion: "2375"
+  uid: ae3bf0ed-b7d1-47c5-aa12-ac8060b09705
+spec:
+  extra:
+    authentication.kubernetes.io/credential-id:
+    - X509SHA256=33af6555df1322aff62747cf93aed409799108c17741f926881f249fc8891329
+  groups:
+  - system:masters
+  - system:authenticated
+  request: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0KTUlJQ1dEQ0NBVUFDQVFBd0V6RVJNQThHQTFVRUF3d0libVYzTFhWelpYSXdnZ0VpTUEwR0NTcUdTSWIzRFFFQgpBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRRE8wV0pXK0RYc0FKU0lyanBObzV2UklCcGxuemcrNnhjOStVVndrS2kwCkxmQzI3dCsxZUVuT041TXVxOTlOZXZtTUVPbnJEVU8vdGh5VnFQMncyWE5JRFJYall5RjQwRmJtRCs1eld5Q0sKeTNCaWhoQjkzTUo3T3FsM1VUdlo4VEVMcXlhRGtuUmwvanYvU3hnWGtvazBBQlVUcFdNeDRCcFNpS2IwVSt0RQpJRjVueEF0dE1Wa0RQUTdOYmVaUkc0M2IrUVdsVkdSL3o2RFdPZkpuYmZlek90YUF5ZEdMVFpGQy93VHB6NTJrCkVjQ1hBd3FDaGpCTGt6MkJIUFI0Sjg5RDZYYjhrMzlwdTZqcHluZ1Y2dVAwdEliT3pwcU52MFkwcWRFWnB3bXcKajJxRUwraFpFV2trRno4MGxOTnR5VDVMeE1xRU5EQ25JZ3dDNEdaaVJHYnJBZ01CQUFHZ0FEQU5CZ2txaGtpRwo5dzBCQVFzRkFBT0NBUUVBUzlpUzZDMXV4VHVmNUJCWVNVN1FGUUhVemFsTnhBZFlzYU9SUlFOd0had0hxR2k0CmhPSzRhMnp5TnlpNDRPT2lqeWFENnRVVzhEU3hrcjhCTEs4S2czc3JSRXRKcWw1ckxaeTlMUlZyc0pnaEQ0Z1kKUDlOTCthRFJTeFJPVlNxQmFCMm5XZVlwTTVjSjVURjUzbGVzTlNOTUxRMisrUk1uakRRSjdqdVBFaWM4L2RoawpXcjJFVU02VWF3enlrcmRISW13VHYybWxNWTBSK0ROdFYxWWllKzBIOS9ZRWx0K0ZTR2poNUw1WVV2STFEcWl5CjRsM0UveTNxTDcxV2ZBY3VIM09zVnBVVW5RSVNNZFFzMHFXQ3NiRTU2Q0M1RGhQR1pJcFVibktVcEF3a2ErOEUKdndRMDdqRytocGtueG11RkFlWHhnVXdvZEFMYUo3anUvVERJY3c9PQotLS0tLUVORCBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0K
+  signerName: kubernetes.io/kube-apiserver-client
+  usages:
+  - digital signature
+  - key encipherment
+  - server auth
+  username: agent-x
+status: {}
+```
+
+
+To DENY a request:
+
+```sh
+$ kubectl certificate deny agent-smith
+certificatesigningrequest.certificates.k8s.io/agent-smith denied
+```
+
+
+
+Then we can delete the request 
+
+```sh
+kubectl delete csr agent-smith
+certificatesigningrequest.certificates.k8s.io "agent-smith" deleted
+```
+
+```sh
+$ kubectl get csr
+NAME        AGE   SIGNERNAME                                    REQUESTOR                  REQUESTEDDURATION   CONDITION
+akshay      10m   kubernetes.io/kube-apiserver-client           kubernetes-admin           <none>              Approved,Issued
+csr-8lxw9   31m   kubernetes.io/kube-apiserver-client-kubelet   system:node:controlplane   <none>              Approved,Issued
+```
+
+
+
+
+# Kubeconfig
+
+
+Kubeconfig is the configuration file used by the user under the home directory, .kube folder:
+
+```sh
+~/.kube/config
+```
+
+
+This is an example of a kubeconfig file:
+
+```yaml
+cat config
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURCVENDQWUyZ0F3SUJBZ0lJT2QwSW5oNmN0RGN3RFFZSktvWklodmNOQVFFTEJRQXdGVEVUTUJFR0ExVUUKQXhNS2EzVmlaWEp1WlhSbGN6QWVGdzB5TlRFeU1qTXhNVEE1TlRGYUZ3MHpOVEV5TWpFeE1URTBOVEZhTUJVeApFekFSQmdOVkJBTVRDbXQxWW1WeWJtVjBaWE13Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLCkFvSUJBUUMySXBDRUVyTWNPNUgyWGVoZDQyV1EzWExPc3FiN1J1YWJIUjMvNDNkNEwvTkYyNkgvT080RUVLVm4KQW51STdneDFlaDFFMkxhM3BuNjhoM3JOb245bHRZRmIwanE1VFhaVm5MN2lESTkwYUFoUWdLVS90V3BZVGRaMwpPMzNjbXJBSUoxMHJ0cmE5MHQydHZNamxGbjI2OE4xdWdLZFhIT09HMlFrMFZKbEdYak9QcDdaeGp0ak90dnU4CmZEV0I0YWcrWHJtU2dvL2g5QzVpNmJpUFJvclpsT1F1T3dxZG1aaG44K25GTEgzdVNIbzFSazRjSTgzdEE2anMKa3F0WmRwRGFQUjUwb1YvcHM1elBna2s4d1pNQ3dwRlhkWjYybEVZNVkzWDkvMWZSeXI5c1BQNHhSUkwxRmxJWAowVDg1OTFDU0RzYlZlSk41eEhJN2tYU25wU2FsQWdNQkFBR2pXVEJYTUE0R0ExVWREd0VCL3dRRUF3SUNwREFQCkJnTlZIUk1CQWY4RUJUQURBUUgvTUIwR0ExVWREZ1FXQkJRMkhuTllwVFh5dDFIb1BIOGlFZm91bWlGSnREQVYKQmdOVkhSRUVEakFNZ2dwcmRXSmxjbTVsZEdWek1BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRQVRJT3QrUTJ5RwpzVmh1SGRlTFJocStLalNNQklTdW1xQTBPTS95dlR6QTdmSURleDdGV3FxZG1pV0VpUWhabDJIemVEcHAxUmJtCnJoaFo0aU51ZGwxaEJHelBMcHdSNXZHaW1yWEZ5dWJleHZRTmw2a0pzdXdtSWZMSFp4b1UrNUxmd3J4WHhXd1EKQTdaZHRvT0xwV3JrMG8vM3EyZFMwcjVhaTEvRUtOZWswT0J4RzRGeGJWRUFDVXVJYWFranNRTG9TdnhJU2FqagoreHhtWkVtcENDYUZTdExUT2dUaWR6T0RqTEdkNzIrSGYyUkZGaVl4UzI5UkMwLzdOTXh1aGZWSmFCcWh2YUx3Cmp0K2pQeExoTjIrTDBHQitlRllqRHJ0OVVXNllNZkUxbUswdUY1bEtLbmdDUWFZSTA3TFBYaTBFVVl1bVplY3oKUnVqOVI1OVBmcUJLCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+    server: https://controlplane:6443
+  name: kubernetes
+contexts:
+- context:
+    cluster: kubernetes
+    user: kubernetes-admin
+  name: kubernetes-admin@kubernetes
+current-context: kubernetes-admin@kubernetes
+kind: Config
+users:
+- name: kubernetes-admin
+  user:
+    client-certificate-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURLVENDQWhHZ0F3SUJBZ0lJV2orRUhjcXJzeDR3RFFZSktvWklodmNOQVFFTEJRQXdGVEVUTUJFR0ExVUUKQXhNS2EzVmlaWEp1WlhSbGN6QWVGdzB5TlRFeU1qTXhNVEE1TlRGYUZ3MHlOakV5TWpNeE1URTBOVEZhTUR3eApIekFkQmdOVkJBb1RGbXQxWW1WaFpHMDZZMngxYzNSbGNpMWhaRzFwYm5NeEdUQVhCZ05WQkFNVEVHdDFZbVZ5CmJtVjBaWE10WVdSdGFXNHdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUFBNElCRHdBd2dnRUtBb0lCQVFEVmhLWEIKaitLQSswdWlkSXdUdDNyQkt2VDd5ZFhqOExOY25ucXB3ZG9WNGpOcER2LzdOL1VFb3duY0ZVa1k0WFRhRkpVeQo5bmF2Nk9Za1Z4MnovaWptc21xWlM3clkyc0pVOWdFYStSSEtzR1kyeC9uSjVxL3p2K0pkTmJvTUxtM0RNWWlQCjI4cGNTdVdxSHc1d3NuelJxVWJUL2NVb1dnZis0Z2FicmJXNjVTcG9ycVR4MnlyN09rNkJHbER5eHFPQWNDVE0KNUwyZTNOOG5COHkyNVpUcm5ud0xmYWptZFNIajBIaEhGTndCeFoyRWltUitCK3VoNFBMSkVxVUYxKzAvWElWcApUK0UwSkdQalk1bkFEV3Z0VXF6VWh3dFFaTFQwQzZYL1E3M1AvL3ZRNmJFWUN5WWdWVC9lODFFc244QngreVBKCm50ZU9jNkxTZGtrN3VhMlJBZ01CQUFHalZqQlVNQTRHQTFVZER3RUIvd1FFQXdJRm9EQVRCZ05WSFNVRUREQUsKQmdnckJnRUZCUWNEQWpBTUJnTlZIUk1CQWY4RUFqQUFNQjhHQTFVZEl3UVlNQmFBRkRZZWMxaWxOZkszVWVnOApmeUlSK2k2YUlVbTBNQTBHQ1NxR1NJYjNEUUVCQ3dVQUE0SUJBUUNtY3c1ZVIxQndMaU9zRXlNMXE5MGoyWXlICkdVZlJhV3lmM2FSY2t2UGVQajg0WjBtekxOKzYrWk0wOU4rU3g3UDZmMXc5UnFTMVJNSTBFa0NKcE5MdzRlRFkKVWx1N3U2S0VOZ3AxVjlJYUVZUnZmaXE1MTdicU56emk4MmJZNlU1enpYK1FWSFRIaVBva2o1N1hlazRTL0RadwpvTXkvSUVFV0tHY3cyQjBncytCSlFWcFZscURDUG1ucWpyNUliM0JDd3FUc3ZQNGNVaDZ1TStWNXJYK2F5TVY1ClNTazlqUHIrdkdISGIzeUEvNVFiYXJYMXVtdFZoY1NIdTQycnpFME52L2lwVWJvL09YbUczdldzby9pTmUyN0wKOHdBTHZQQXptL0JYUTB5UmNvL0tZZVBKekpKL3QxcnJ5bFlTY3NoTEVjcG5NRjVXU3BrSStSSXJ1SjZJCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+    client-key-data: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcFFJQkFBS0NBUUVBMVlTbHdZL2lnUHRMb25TTUU3ZDZ3U3IwKzhuVjQvQ3pYSjU2cWNIYUZlSXphUTcvCit6ZjFCS01KM0JWSkdPRjAyaFNWTXZaMnIram1KRmNkcy80bzVySnFtVXU2Mk5yQ1ZQWUJHdmtSeXJCbU5zZjUKeWVhdjg3L2lYVFc2REM1dHd6R0lqOXZLWEVybHFoOE9jTEo4MGFsRzAvM0ZLRm9IL3VJR202MjF1dVVxYUs2awo4ZHNxK3pwT2dScFE4c2FqZ0hBa3pPUzludHpmSndmTXR1V1U2NTU4QzMybzVuVWg0OUI0UnhUY0FjV2RoSXBrCmZnZnJvZUR5eVJLbEJkZnRQMXlGYVUvaE5DUmo0Mk9ad0ExcjdWS3MxSWNMVUdTMDlBdWwvME85ei8vNzBPbXgKR0FzbUlGVS8zdk5STEovQWNmc2p5WjdYam5PaTBuWkpPN210a1FJREFRQUJBb0lCQUZORTRIbmMyY3BRZG40OApNcGJMNHVrcmpoQVY5ajduVTZQR3dIS3N3WmJ3T1BsN1dwUklEZHVKaytKTFFNOGR1ZnNFdE8wRGxtVGpFTUhTCllhaWM4YW1Lb2l6M2pqNWREaFdoUE93ZWYzUkxHQW04TW11dGRpZzZ5Slp1U2dqUElJcFRxbnprREFhelJONzAKTHFiL3pOTGRUOXlENXR4bVJDRUFWL0JscmU1ZEUzK1ZpRHhJaFhCR0tNSmV2U3JsVk1wMmcwV3F4ZHdYNHYwNQpiblNjTnlaZmtwQlorWURKMThaOTNwKzNuSTdaQ2FvNGp4MWhseG5oRUo5T1M2ZTRmaEdPb1NNVTFFbXFtZ21vClZWNk56dUtjZzNIZ05LWVlaZEdkY3NqdGZLUTlHdTh6VGNybUxDL3Q1c2h1dFFob0xzbStNak82Q3pzM2ZpanQKQWYvcWNLc0NnWUVBOU9zTFkvSXhXS3BMR01yQjNSTTlOS0FNQVc3U2hGZXRlSXNTN2dTZnRUK2NoRmhNUlFMcgoxOEt4Qlc2b0JDaHdLYndRTVMvUWJUUG5WbHVha2hQKzN0Nm9CY281dDY2R0dzOWxZbWVMbzNpczI3aGZaV1h4CmhWNTN1bGFEZUJ1U21KY3JJNDQzR05rWDBiSGlhVzdMcmZQWW9HQWh5bDBkK2xKNlo5c2hVUjhDZ1lFQTN5M2oKWEJCODhsTTQzbTk5bk14VjhxSFdNMkd5VlVFMzBFb1c4RGJnVG5TaXZTUUxwVHl6enMrbU9kZVdJZUVlMXErVQphaC8vOHZHYlZVeHcrbGIwanM5NlNENmJBa1N5L0txb2w1VTJycENDUjFaMmdDMDN2RUNQOUlLQVY4di9mMnNQCjJZalkycEh2WnRuUHFPbmMxYUU2RTd0V3RiVlNRa2o1R2dQUXUwOENnWUVBdlpvRVhHQlBRVk84QlRwWjhEcUgKcEdqT1FvRzNxVXB5K2FHNGl0aTdoc1h5OWlXaERiL2dNa3ovVzdRNWo5WjZWbVRIcUR4YXYxOXlGTkdmakx5OApEMjhSWmtJU2dwY3lMQ2tvVkpEU2NqL21tY1pXMjVtYTZ1T2lEbmdSR1BkSGVxZDBkdmNPd2thMkFOa1Q3UWtmCjFzK3lnUjFLcTIyQTJwdmxOT2RZR0lNQ2dZRUExOG9meHBtdXBnTnZ2aXNnMG1ZRVNHalFtcmZBM1l3RXNtR2cKMGp6Tkh5N0pWNFl0dUdQOEcyQk5naW9BWU51eG5MVUNGS2JDTEo0TnFpa1NLQXZCeFArNVpYY2JHOU5mR016TgozRnNMRnpoa3J5TmJ5czF0MFppL1dCU0NrZUdPTmg1SG9mY2ViaCtpMGRpU1grbFhmRHU2MHU5VmhMWkFSaFVXCnZsK29DQ01DZ1lFQWxja3JraWppWGk1RWQ0WDFLZk95eTJxaWd3Mk9pbjFsMkhra1JvWUdobnpUZkVPc0szdWwKTE5lcE5qTjRRYXJ6ZlJmbnJqM2tmcWxJaXNnYlYwMmFaQVF3VUQ0dy9lamtaeWNSSGI4V21rUGVqTFVPNHkyNQpPak5jV2YxU09NU256YXNvYitkeFJCQzJVUjIvc0ZjTFVFak5TQUR1QUp6UnVoRlQ1b3hsZlAwPQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=
+```
+
+
+Notice that we have a session:
+- clusters
+- contexts
+- users
+
+
+Lets review the above kubeconfig file. The above file has:
+- 01 cluster called kubernetes 
+- 01 user called kubernetes-admin
+- 01 context called kubernetes-admin@kubernetes
+- The context kubernetes-admin@kubernetes has allowed user kubernetes-admin for the cluster kuberentes
+
+
+## Multi clusters kubeconfig file
+
+Lets review a kubeconfig file with multiples clusters set up on it:
+
+```sh
+cat my-kube-config 
+apiVersion: v1
+kind: Config
+
+clusters:
+- name: production
+  cluster:
+    certificate-authority: /etc/kubernetes/pki/ca.crt
+    server: https://controlplane:6443
+
+- name: development
+  cluster:
+    certificate-authority: /etc/kubernetes/pki/ca.crt
+    server: https://controlplane:6443
+
+- name: kubernetes-on-aws
+  cluster:
+    certificate-authority: /etc/kubernetes/pki/ca.crt
+    server: https://controlplane:6443
+
+- name: test-cluster-1
+  cluster:
+    certificate-authority: /etc/kubernetes/pki/ca.crt
+    server: https://controlplane:6443
+
+contexts:
+- name: test-user@development
+  context:
+    cluster: development
+    user: test-user
+
+- name: aws-user@kubernetes-on-aws
+  context:
+    cluster: kubernetes-on-aws
+    user: aws-user
+
+- name: test-user@production
+  context:
+    cluster: production
+    user: test-user
+
+- name: research
+  context:
+    cluster: test-cluster-1
+    user: dev-user
+
+users:
+- name: test-user
+  user:
+    client-certificate: /etc/kubernetes/pki/users/test-user/test-user.crt
+    client-key: /etc/kubernetes/pki/users/test-user/test-user.key
+- name: dev-user
+  user:
+    client-certificate: /etc/kubernetes/pki/users/dev-user/developer-user.crt
+    client-key: /etc/kubernetes/pki/users/dev-user/dev-user.key
+- name: aws-user
+  user:
+    client-certificate: /etc/kubernetes/pki/users/aws-user/aws-user.crt
+    client-key: /etc/kubernetes/pki/users/aws-user/aws-user.key
+
+current-context: test-user@development
+preferences: {}
+```
+
+
+The above kubeconfig file has:
+- 04 clusters set up
+- 04 contexts set up
+- 03 users set up
+- The default current-context is set to context test-user@development
+- The research context is set to user dev-user
+- The client certificate set up for the user aws-user is /etc/kubernetes/pki/users/aws-user/aws-user.crt
+
+Set up your kubeconfig to use default context as research
+
+```sh
+cat my-kube-config | grep current-context
+current-context: research
+```
+
+OR use the command
+
+```sh
+kubectl config use-context research --kubeconfig=/root/my-kube-config 
+Switched to context "research".
+```
+
+
+You can also use the below command to check the current context set up:
+
+```sh
+kubectl config get-contexts --kubeconfig=/root/my-kube-config 
+CURRENT   NAME                         CLUSTER             AUTHINFO    NAMESPACE
+          aws-user@kubernetes-on-aws   kubernetes-on-aws   aws-user    
+*         research                     test-cluster-1      dev-user    
+          test-user@development        development         test-user   
+          test-user@production         production          test-user   
+```
+
+
+
+To allow us to not have to type the `kubeconfig` parameter we need export a variable KUBECONFIG
+
+```sh
+cat .bashrc | grep -i kubeconfig
+export KUBECONFIG=/root/my-kube-config
+```
+
+
+Then
+
+```sh
+source .bashrc
+
+echo $KUBECONFIG 
+/root/my-kube-config
+```
+
+
+
+### Fixing the correct certificate in kubeconfig
+
+When we set up wrong certificate in our kubeconfig we get an error:
+
+```sh
+kubectl get pods
+error: unable to read client-cert /etc/kubernetes/pki/users/dev-user/developer-user.crt for dev-user due to open /etc/kubernetes/pki/users/dev-user/developer-user.crt: no such file or directory
+```
+
+
+Notice that the certificate for dev-ser is dev-user.crt and not developer-user.crt
+
+```sh
+ls
+dev-user.crt  dev-user.csr  dev-user.key
+```
+
+
+Lets configure the correct cert file in our kubeconfig file
+
+```sh
+cat my-kube-config | grep client-cert | grep dev-user
+    client-certificate: /etc/kubernetes/pki/users/dev-user/dev-user.crt
+```
+
+and now
+
+```sh
+kubectl get pods
+No resources found in default namespace.
+```
+
+
+
+# kube api groups 
+
+To access kube api we will need our certificate, key and cacert. Example
+
+```sh
+$ curl https://localhost:6443 -k --key admin.key --cert admin.crt --cacert ca.crt
+```
+
+OR 
+
+we can use 
+
+```sh
+$ kubectl proxy
+Starting to serve on 127.0.0.1:8001
+```
+
+
+Then we can run 
+
+```sh
+curl http://localhost:8001 -k
+
+curl http://localhost:8001/version -k
+{
+  "major": "1",
+  "minor": "32",
+  "gitVersion": "v1.32.0",
+  "gitCommit": "70d3cc986aa8221cd1dfb1121852688902d3bf53",
+  "gitTreeState": "clean",
+  "buildDate": "2024-12-13T19:21:38Z",
+  "goVersion": "go1.23.3",
+  "compiler": "gc",
+  "platform": "linux/arm64"
+}%
+
+curl http://localhost:8001/api -k
+```
+
+
+
+## Role Based Access Controls
+
+
+How to check our current environment authorization mode set up
+
+```sh
+$ kubectl describe po kube-apiserver-controlplane -n kube-system | grep "\--authorizati
+on-mode"
+      --authorization-mode=Node,RBAC
+```
+
+
+
+How to check all existing roles
+
+```sh
+➜  kubectl get roles -A
+NAMESPACE     NAME                                             CREATED AT
+blue          developer                                        2025-12-30T12:23:18Z
+kube-public   kubeadm:bootstrap-signer-clusterinfo             2025-12-30T12:17:43Z
+kube-public   system:controller:bootstrap-signer               2025-12-30T12:17:43Z
+kube-system   extension-apiserver-authentication-reader        2025-12-30T12:17:43Z
+kube-system   kube-proxy                                       2025-12-30T12:17:44Z
+kube-system   kubeadm:kubelet-config                           2025-12-30T12:17:43Z
+kube-system   kubeadm:nodes-kubeadm-config                     2025-12-30T12:17:43Z
+kube-system   system::leader-locking-kube-controller-manager   2025-12-30T12:17:43Z
+kube-system   system::leader-locking-kube-scheduler            2025-12-30T12:17:43Z
+kube-system   system:controller:bootstrap-signer               2025-12-30T12:17:43Z
+kube-system   system:controller:cloud-provider                 2025-12-30T12:17:43Z
+kube-system   system:controller:token-cleaner                  2025-12-30T12:17:43Z
+```
+
+
+
+How to check the resources that kube-proxy role in the kube-system namespace is given access to
+
+```sh
+kubectl describe roles kube-proxy -n kube-system
+Name:         kube-proxy
+Labels:       <none>
+Annotations:  <none>
+PolicyRule:
+  Resources   Non-Resource URLs  Resource Names  Verbs
+  ---------   -----------------  --------------  -----
+  configmaps  []                 [kube-proxy]    [get]
+```
+
+Notice that the kube-proxy located in the kube-system can get/list configmaps
+
+
+Lets check all role bindings we have
+
+```sh
+$ kubectl get rolebinding -n kube-system
+NAME                                                ROLE                                                  AGE
+kube-proxy                                          Role/kube-proxy                                       13m
+kubeadm:kubelet-config                              Role/kubeadm:kubelet-config                           13m
+kubeadm:nodes-kubeadm-config                        Role/kubeadm:nodes-kubeadm-config                     13m
+system::extension-apiserver-authentication-reader   Role/extension-apiserver-authentication-reader        13m
+system::leader-locking-kube-controller-manager      Role/system::leader-locking-kube-controller-manager   13m
+system::leader-locking-kube-scheduler               Role/system::leader-locking-kube-scheduler            13m
+system:controller:bootstrap-signer                  Role/system:controller:bootstrap-signer               13m
+system:controller:cloud-provider                    Role/system:controller:cloud-provider                 13m
+system:controller:token-cleaner                     Role/system:controller:token-cleaner                  13m
+```
+
+
+lets check the kube-proxy role binding and what permission it has
+
+```sh
+$ kubectl describe rolebinding kube-proxy -n kube-system
+Name:         kube-proxy
+Labels:       <none>
+Annotations:  <none>
+Role:
+  Kind:  Role
+  Name:  kube-proxy
+Subjects:
+  Kind   Name                                             Namespace
+  ----   ----                                             ---------
+  Group  system:bootstrappers:kubeadm:default-node-token  
+```
+
+
+Lets check if user dev-user can list/get pods 
+
+```sh
+$ kubectl auth can-i get pods --as dev-user
+no
+```
+
+
+## Cluster Roles
+
+
+We have cluster roles which is not namespace oriented, which means it is across all namespaces. 
+We can have cluster roles and cluster rolebinding 
+
+```sh
+$ kubectl get clusterroles
+NAME                                                                   CREATED AT
+admin                                                                  2025-12-30T12:59:25Z
+cluster-admin                                                          2025-12-30T12:59:25Z
+clustercidrs-node                                                      2025-12-30T12:59:29Z
+edit                                                                   2025-12-30T12:59:25Z
+k3s-cloud-controller-manager                                           2025-12-30T12:59:29Z
+local-path-provisioner-role                                            2025-12-30T12:59:29Z
+system:aggregate-to-admin                                              2025-12-30T12:59:25Z
+system:aggregate-to-edit                                               2025-12-30T12:59:25Z
+system:aggregate-to-view                                               2025-12-30T12:59:25Z
+system:aggregated-metrics-reader                                       2025-12-30T12:59:29Z
+system:auth-delegator                                                  2025-12-30T12:59:25Z
+system:basic-user                                                      2025-12-30T12:59:25Z
+system:certificates.k8s.io:certificatesigningrequests:nodeclient       2025-12-30T12:59:25Z
+system:certificates.k8s.io:certificatesigningrequests:selfnodeclient   2025-12-30T12:59:25Z
+system:certificates.k8s.io:kube-apiserver-client-approver              2025-12-30T12:59:25Z
+system:certificates.k8s.io:kube-apiserver-client-kubelet-approver      2025-12-30T12:59:25Z
+system:certificates.k8s.io:kubelet-serving-approver                    2025-12-30T12:59:25Z
+system:certificates.k8s.io:legacy-unknown-approver                     2025-12-30T12:59:25Z
+system:controller:attachdetach-controller                              2025-12-30T12:59:25Z
+system:controller:certificate-controller                               2025-12-30T12:59:25Z
+system:controller:clusterrole-aggregation-controller                   2025-12-30T12:59:25Z
+system:controller:cronjob-controller                                   2025-12-30T12:59:25Z
+system:controller:daemon-set-controller                                2025-12-30T12:59:25Z
+system:controller:deployment-controller                                2025-12-30T12:59:25Z
+system:controller:disruption-controller                                2025-12-30T12:59:25Z
+system:controller:endpoint-controller                                  2025-12-30T12:59:25Z
+system:controller:endpointslice-controller                             2025-12-30T12:59:25Z
+system:controller:endpointslicemirroring-controller                    2025-12-30T12:59:25Z
+system:controller:ephemeral-volume-controller                          2025-12-30T12:59:25Z
+system:controller:expand-controller                                    2025-12-30T12:59:25Z
+system:controller:generic-garbage-collector                            2025-12-30T12:59:25Z
+system:controller:horizontal-pod-autoscaler                            2025-12-30T12:59:25Z
+system:controller:job-controller                                       2025-12-30T12:59:25Z
+system:controller:legacy-service-account-token-cleaner                 2025-12-30T12:59:25Z
+system:controller:namespace-controller                                 2025-12-30T12:59:25Z
+system:controller:node-controller                                      2025-12-30T12:59:25Z
+system:controller:persistent-volume-binder                             2025-12-30T12:59:25Z
+system:controller:pod-garbage-collector                                2025-12-30T12:59:25Z
+system:controller:pv-protection-controller                             2025-12-30T12:59:25Z
+system:controller:pvc-protection-controller                            2025-12-30T12:59:25Z
+system:controller:replicaset-controller                                2025-12-30T12:59:25Z
+system:controller:replication-controller                               2025-12-30T12:59:25Z
+system:controller:resource-claim-controller                            2025-12-30T12:59:25Z
+system:controller:resourcequota-controller                             2025-12-30T12:59:25Z
+system:controller:root-ca-cert-publisher                               2025-12-30T12:59:25Z
+system:controller:route-controller                                     2025-12-30T12:59:25Z
+system:controller:selinux-warning-controller                           2025-12-30T12:59:25Z
+system:controller:service-account-controller                           2025-12-30T12:59:25Z
+system:controller:service-cidrs-controller                             2025-12-30T12:59:25Z
+system:controller:service-controller                                   2025-12-30T12:59:25Z
+system:controller:statefulset-controller                               2025-12-30T12:59:25Z
+system:controller:ttl-after-finished-controller                        2025-12-30T12:59:25Z
+system:controller:ttl-controller                                       2025-12-30T12:59:25Z
+system:controller:validatingadmissionpolicy-status-controller          2025-12-30T12:59:25Z
+system:controller:volumeattributesclass-protection-controller          2025-12-30T12:59:25Z
+system:coredns                                                         2025-12-30T12:59:29Z
+system:discovery                                                       2025-12-30T12:59:25Z
+system:heapster                                                        2025-12-30T12:59:25Z
+system:k3s-controller                                                  2025-12-30T12:59:30Z
+system:kube-aggregator                                                 2025-12-30T12:59:25Z
+system:kube-controller-manager                                         2025-12-30T12:59:25Z
+system:kube-dns                                                        2025-12-30T12:59:25Z
+system:kube-scheduler                                                  2025-12-30T12:59:25Z
+system:kubelet-api-admin                                               2025-12-30T12:59:25Z
+system:metrics-server                                                  2025-12-30T12:59:29Z
+system:monitoring                                                      2025-12-30T12:59:25Z
+system:node                                                            2025-12-30T12:59:25Z
+system:node-bootstrapper                                               2025-12-30T12:59:25Z
+system:node-problem-detector                                           2025-12-30T12:59:25Z
+system:node-proxier                                                    2025-12-30T12:59:25Z
+system:persistent-volume-provisioner                                   2025-12-30T12:59:25Z
+system:public-info-viewer                                              2025-12-30T12:59:25Z
+system:service-account-issuer-discovery                                2025-12-30T12:59:25Z
+system:volume-scheduler                                                2025-12-30T12:59:25Z
+traefik-kube-system                                                    2025-12-30T13:00:01Z
+view                                                                   2025-12-30T12:59:25Z
+```
+
+
+```sh
+kubectl get clusterrolebindings
+NAME                                                            ROLE                                                                        AGE
+cluster-admin                                                   ClusterRole/cluster-admin                                                   8m15s
+clustercidrs-node                                               ClusterRole/clustercidrs-node                                               8m11s
+helm-kube-system-traefik                                        ClusterRole/cluster-admin                                                   8m10s
+helm-kube-system-traefik-crd                                    ClusterRole/cluster-admin                                                   8m10s
+k3s-cloud-controller-manager                                    ClusterRole/k3s-cloud-controller-manager                                    8m11s
+k3s-cloud-controller-manager-auth-delegator                     ClusterRole/system:auth-delegator                                           8m11s
+kube-apiserver-kubelet-admin                                    ClusterRole/system:kubelet-api-admin                                        8m11s
+local-path-provisioner-bind                                     ClusterRole/local-path-provisioner-role                                     8m11s
+metrics-server:system:auth-delegator                            ClusterRole/system:auth-delegator                                           8m11s
+system:basic-user                                               ClusterRole/system:basic-user                                               8m15s
+system:controller:attachdetach-controller                       ClusterRole/system:controller:attachdetach-controller                       8m15s
+system:controller:certificate-controller                        ClusterRole/system:controller:certificate-controller                        8m15s
+system:controller:clusterrole-aggregation-controller            ClusterRole/system:controller:clusterrole-aggregation-controller            8m15s
+system:controller:cronjob-controller                            ClusterRole/system:controller:cronjob-controller                            8m15s
+system:controller:daemon-set-controller                         ClusterRole/system:controller:daemon-set-controller                         8m15s
+system:controller:deployment-controller                         ClusterRole/system:controller:deployment-controller                         8m15s
+system:controller:disruption-controller                         ClusterRole/system:controller:disruption-controller                         8m15s
+system:controller:endpoint-controller                           ClusterRole/system:controller:endpoint-controller                           8m15s
+system:controller:endpointslice-controller                      ClusterRole/system:controller:endpointslice-controller                      8m15s
+system:controller:endpointslicemirroring-controller             ClusterRole/system:controller:endpointslicemirroring-controller             8m15s
+system:controller:ephemeral-volume-controller                   ClusterRole/system:controller:ephemeral-volume-controller                   8m15s
+system:controller:expand-controller                             ClusterRole/system:controller:expand-controller                             8m15s
+system:controller:generic-garbage-collector                     ClusterRole/system:controller:generic-garbage-collector                     8m15s
+system:controller:horizontal-pod-autoscaler                     ClusterRole/system:controller:horizontal-pod-autoscaler                     8m15s
+system:controller:job-controller                                ClusterRole/system:controller:job-controller                                8m15s
+system:controller:legacy-service-account-token-cleaner          ClusterRole/system:controller:legacy-service-account-token-cleaner          8m15s
+system:controller:namespace-controller                          ClusterRole/system:controller:namespace-controller                          8m15s
+system:controller:node-controller                               ClusterRole/system:controller:node-controller                               8m15s
+system:controller:persistent-volume-binder                      ClusterRole/system:controller:persistent-volume-binder                      8m15s
+system:controller:pod-garbage-collector                         ClusterRole/system:controller:pod-garbage-collector                         8m15s
+system:controller:pv-protection-controller                      ClusterRole/system:controller:pv-protection-controller                      8m15s
+system:controller:pvc-protection-controller                     ClusterRole/system:controller:pvc-protection-controller                     8m15s
+system:controller:replicaset-controller                         ClusterRole/system:controller:replicaset-controller                         8m15s
+system:controller:replication-controller                        ClusterRole/system:controller:replication-controller                        8m15s
+system:controller:resource-claim-controller                     ClusterRole/system:controller:resource-claim-controller                     8m15s
+system:controller:resourcequota-controller                      ClusterRole/system:controller:resourcequota-controller                      8m15s
+system:controller:root-ca-cert-publisher                        ClusterRole/system:controller:root-ca-cert-publisher                        8m15s
+system:controller:route-controller                              ClusterRole/system:controller:route-controller                              8m15s
+system:controller:selinux-warning-controller                    ClusterRole/system:controller:selinux-warning-controller                    8m15s
+system:controller:service-account-controller                    ClusterRole/system:controller:service-account-controller                    8m15s
+system:controller:service-cidrs-controller                      ClusterRole/system:controller:service-cidrs-controller                      8m15s
+system:controller:service-controller                            ClusterRole/system:controller:service-controller                            8m15s
+system:controller:statefulset-controller                        ClusterRole/system:controller:statefulset-controller                        8m15s
+system:controller:ttl-after-finished-controller                 ClusterRole/system:controller:ttl-after-finished-controller                 8m15s
+system:controller:ttl-controller                                ClusterRole/system:controller:ttl-controller                                8m15s
+system:controller:validatingadmissionpolicy-status-controller   ClusterRole/system:controller:validatingadmissionpolicy-status-controller   8m15s
+system:controller:volumeattributesclass-protection-controller   ClusterRole/system:controller:volumeattributesclass-protection-controller   8m15s
+system:coredns                                                  ClusterRole/system:coredns                                                  8m11s
+system:discovery                                                ClusterRole/system:discovery                                                8m15s
+system:k3s-controller                                           ClusterRole/system:k3s-controller                                           8m11s
+system:kube-controller-manager                                  ClusterRole/system:kube-controller-manager                                  8m15s
+system:kube-dns                                                 ClusterRole/system:kube-dns                                                 8m15s
+system:kube-scheduler                                           ClusterRole/system:kube-scheduler                                           8m15s
+system:metrics-server                                           ClusterRole/system:metrics-server                                           8m11s
+system:monitoring                                               ClusterRole/system:monitoring                                               8m15s
+system:node                                                     ClusterRole/system:node                                                     8m15s
+system:node-proxier                                             ClusterRole/system:node-proxier                                             8m15s
+system:public-info-viewer                                       ClusterRole/system:public-info-viewer                                       8m15s
+system:service-account-issuer-discovery                         ClusterRole/system:service-account-issuer-discovery                         8m15s
+system:volume-scheduler                                         ClusterRole/system:volume-scheduler                                         8m15s
+traefik-kube-system                                             ClusterRole/traefik-kube-system                                             7m39s
+```
+
+
+
+Lets check what cluster-admin cluster role binding is set up
+
+```sh
+kubectl describe clusterrolebinding cluster-admin
+Name:         cluster-admin
+Labels:       kubernetes.io/bootstrapping=rbac-defaults
+Annotations:  rbac.authorization.kubernetes.io/autoupdate: true
+Role:
+  Kind:  ClusterRole
+  Name:  cluster-admin
+Subjects:
+  Kind   Name            Namespace
+  ----   ----            ---------
+  Group  system:masters  
+```
+
+
+Lets check what permission the cluster role cluster-admin has
+
+```sh
+kubectl describe clusterrole cluster-admin
+Name:         cluster-admin
+Labels:       kubernetes.io/bootstrapping=rbac-defaults
+Annotations:  rbac.authorization.kubernetes.io/autoupdate: true
+PolicyRule:
+  Resources  Non-Resource URLs  Resource Names  Verbs
+  ---------  -----------------  --------------  -----
+  *.*        []                 []              [*]
+             [*]                []              [*]
+```
+
+notice that the cluster role clsuter-admin can do any action in any namespace
