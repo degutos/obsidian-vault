@@ -521,6 +521,349 @@ Lets add this partition to our fstab
 - SAN - Storage Area network
 
 
-### NFS filesystem
+### LVM - Logical volume Manager
+
+- PV - physical volume - /dev/sdb1
+- VG - volume group
+- LV - logical volume
+
+To install LVM:
+
+```sh
+apt install lvm2
+```
+
+
+To create 
+
+```sh
+pvcreate /dev/sdb
+vgcreate caleston_vg /dev/sdb
+pvdisplay
+vgdisplay 
+lvcreate -L 1G -n vol1 caleston_vg
+lvdisplay
+lvs
+mkfs.ext4 /dev/caleston_vg/vol1
+mount -t ext4 /dev/caleston_vg/vol1 /mnt/vol1
+vgs
+lvresize -L +1G -n /dev/caleston_vg/vol1
+df -hP /mnt/vol1
+resize2fs /dev/caleston_vg/vol1
+df -hP /mnt/vol1
+```
+
+
+
+### Lab LVM
+
+
+To check if LVM is installed:
+
+```sh
+➜  apt search lvm2
+Sorting... Done
+Full Text Search... Done
+liblvm2cmd2.03/now 2.03.11-2.1ubuntu5 amd64 [installed,local]
+  LVM2 command library
+
+lvm2/now 2.03.11-2.1ubuntu5 amd64 [installed,local]
+  Linux Logical Volume Manager
+  
+  ➜  sudo pvdisplay
+  --- Physical volume ---
+  PV Name               /dev/vdd
+  VG Name               vgdata
+  PV Size               2.00 GiB / not usable 4.00 MiB
+  Allocatable           yes 
+  PE Size               4.00 MiB
+  Total PE              511
+  Free PE               127
+  Allocated PE          384
+  PV UUID               eNwXv8-P9Ze-hMh7-X5vd-1zxS-HmoI-2lIJP0
+```
+
+
+```sh
+➜  sudo pvdisplay
+  --- Physical volume ---
+  PV Name               /dev/vdd
+  VG Name               vgdata
+  PV Size               2.00 GiB / not usable 4.00 MiB
+  Allocatable           yes 
+  PE Size               4.00 MiB
+  Total PE              511
+  Free PE               127
+  Allocated PE          384
+  PV UUID               eNwXv8-P9Ze-hMh7-X5vd-1zxS-HmoI-2lIJP0
+   
+```
+
+Notice that we have just one disk so far /dev/vdd
+
+
+Lets check the VG details:
+
+```sh
+➜  sudo vgdisplay
+  --- Volume group ---
+  VG Name               vgdata
+  System ID             
+  Format                lvm2
+  Metadata Areas        1
+  Metadata Sequence No  2
+  VG Access             read/write
+  VG Status             resizable
+  MAX LV                0
+  Cur LV                1
+  Open LV               1
+  Max PV                0
+  Cur PV                1
+  Act PV                1
+  VG Size               <2.00 GiB
+  PE Size               4.00 MiB
+  Total PE              511
+  Alloc PE / Size       384 / 1.50 GiB
+  Free  PE / Size       127 / 508.00 MiB
+  VG UUID               gORh6s-kxu5-JlLN-sp4h-w7fR-jGxi-IUP4AN
+```
+
+Notice that we have a VG called vgdata of 2GiB and 1.5GiB is allocated
+Lets inspect all volumes:
+
+```sh
+➜  lsblk
+NAME            MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+vda             252:0    0   10G  0 disk 
+├─vda1          252:1    0  9.9G  0 part /
+├─vda14         252:14   0    4M  0 part 
+└─vda15         252:15   0  106M  0 part /boot/efi
+vdb             252:16   0    1M  0 disk /mnt/app-config
+vdc             252:32   0    1M  0 disk 
+vdd             252:48   0    2G  0 disk 
+└─vgdata-lvdata 253:0    0  1.5G  0 lvm  /mnt/lvm
+vde             252:64   0    1G  0 disk 
+vdf             252:80   0    1G  0 disk 
+```
+
+
+Lets create 02 more PV:
+
+```sh
+➜  sudo pvcreate /dev/vde 
+  Physical volume "/dev/vde" successfully created.
+
+➜  sudo pvcreate /dev/vdf
+  Physical volume "/dev/vdf" successfully created.
+```
+
+
+Lets check all PVs:
+
+```sh
+✖ sudo pvdisplay
+  --- Physical volume ---
+  PV Name               /dev/vdd
+  VG Name               vgdata
+  PV Size               2.00 GiB / not usable 4.00 MiB
+  Allocatable           yes 
+  PE Size               4.00 MiB
+  Total PE              511
+  Free PE               127
+  Allocated PE          384
+  PV UUID               eNwXv8-P9Ze-hMh7-X5vd-1zxS-HmoI-2lIJP0
+   
+  "/dev/vde" is a new physical volume of "1.00 GiB"
+  --- NEW Physical volume ---
+  PV Name               /dev/vde
+  VG Name               
+  PV Size               1.00 GiB
+  Allocatable           NO
+  PE Size               0   
+  Total PE              0
+  Free PE               0
+  Allocated PE          0
+  PV UUID               glB3tb-w75c-r75M-yPmK-Fndx-U8UF-OHs6zp
+   
+  "/dev/vdf" is a new physical volume of "1.00 GiB"
+  --- NEW Physical volume ---
+  PV Name               /dev/vdf
+  VG Name               
+  PV Size               1.00 GiB
+  Allocatable           NO
+  PE Size               0   
+  Total PE              0
+  Free PE               0
+  Allocated PE          0
+  PV UUID               8TwJRP-GugS-mzIz-C3eH-4PXC-QAMj-ongsv3
+```
+
+
+Also check pvs:
+
+```sh
+➜  sudo pvs
+  PV         VG     Fmt  Attr PSize  PFree  
+  /dev/vdd   vgdata lvm2 a--  <2.00g 508.00m
+  /dev/vde          lvm2 ---   1.00g   1.00g
+  /dev/vdf          lvm2 ---   1.00g   1.00g
+```
+
+
+Lets check the VG:
+
+```sh
+➜  sudo vgdisplay
+  --- Volume group ---
+  VG Name               vgdata
+  System ID             
+  Format                lvm2
+  Metadata Areas        1
+  Metadata Sequence No  2
+  VG Access             read/write
+  VG Status             resizable
+  MAX LV                0
+  Cur LV                1
+  Open LV               1
+  Max PV                0
+  Cur PV                1
+  Act PV                1
+  VG Size               <2.00 GiB
+  PE Size               4.00 MiB
+  Total PE              511
+  Alloc PE / Size       384 / 1.50 GiB
+  Free  PE / Size       127 / 508.00 MiB
+  VG UUID               gORh6s-kxu5-JlLN-sp4h-w7fR-jGxi-IUP4AN
+```
+
+Lets create another VG
+
+```sh
+➜  sudo vgcreate caleston_vg /dev/vde /dev/vdf
+  Volume group "caleston_vg" successfully created
+```
+
+
+Lets check our VG
+
+```sh
+➜  sudo vgdisplay
+  --- Volume group ---
+  VG Name               caleston_vg
+  System ID             
+  Format                lvm2
+  Metadata Areas        2
+  Metadata Sequence No  1
+  VG Access             read/write
+  VG Status             resizable
+  MAX LV                0
+  Cur LV                0
+  Open LV               0
+  Max PV                0
+  Cur PV                2
+  Act PV                2
+  VG Size               1.99 GiB
+  PE Size               4.00 MiB
+  Total PE              510
+  Alloc PE / Size       0 / 0   
+  Free  PE / Size       510 / 1.99 GiB
+  VG UUID               o3U3vR-8Vw6-PrEv-ypUx-O1Kr-bFZw-9YocBK
+   
+  --- Volume group ---
+  VG Name               vgdata
+  System ID             
+  Format                lvm2
+  Metadata Areas        1
+  Metadata Sequence No  2
+  VG Access             read/write
+  VG Status             resizable
+  MAX LV                0
+  Cur LV                1
+  Open LV               1
+  Max PV                0
+  Max PV                0
+  Cur PV                1
+  Act PV                1
+  VG Size               <2.00 GiB
+  PE Size               4.00 MiB
+  Total PE              511
+  Alloc PE / Size       384 / 1.50 GiB
+  Free  PE / Size       127 / 508.00 MiB
+  VG UUID               gORh6s-kxu5-JlLN-sp4h-w7fR-jGxi-IUP4AN
+```
+
+```sh
+➜  sudo vgs
+  VG          #PV #LV #SN Attr   VSize  VFree  
+  caleston_vg   2   0   0 wz--n-  1.99g   1.99g
+  vgdata        1   1   0 wz--n- <2.00g 508.00m
+```
+
+
+Create a new logical volume called `data` from the `caleston_vg`.
+
+```sh
+➜  sudo lvcreate -L 1G -n data caleston_vg
+  Logical volume "data" created.
+```
+
+
+```sh
+➜  sudo lvs
+  LV     VG          Attr       LSize Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
+  data   caleston_vg -wi-a----- 1.00g                                                    
+  lvdata vgdata      -wi-ao---- 1.50g  
+```
+
+
+Create an `ext4` filesystem on this logical volume and mount it at `/mnt/media`
+
+```sh
+➜  sudo mkfs.ext4 /dev/mapper/caleston_vg-data 
+mke2fs 1.46.5 (30-Dec-2021)
+Discarding device blocks: done                            
+Creating filesystem with 262144 4k blocks and 65536 inodes
+Filesystem UUID: 6aa3eb7e-bd88-4050-8bbf-11a2a2556008
+Superblock backups stored on blocks: 
+        32768, 98304, 163840, 229376
+
+Allocating group tables: done                            
+Writing inode tables: done                            
+Creating journal (8192 blocks): done
+Writing superblocks and filesystem accounting information: done
+```
+
+```sh
+➜  sudo mkdir /mnt/media
+
+➜  sudo mount -t ext4 /dev/mapper/caleston_vg-data /mnt/media/
+
+```
+
+
+Add `500M` to the logical volume called `data`.
+
+```sh
+➜  sudo lvresize -L +500M /dev/mapper/caleston_vg-data
+  Size of logical volume caleston_vg/data changed from 1.00 GiB (256 extents) to <1.49 GiB (381 extents).
+  Logical volume caleston_vg/data successfully resized.
+
+➜  sudo resize2fs /dev/mapper/caleston_vg-data 
+resize2fs 1.46.5 (30-Dec-2021)
+Filesystem at /dev/mapper/caleston_vg-data is mounted on /mnt/media; on-line resizing required
+old_desc_blocks = 1, new_desc_blocks = 1
+The filesystem on /dev/mapper/caleston_vg-data is now 390144 (4k) blocks long.
+```
+
+
+Lab final
+
+```sh
+$ scp caleston-code.tar.gz devapp01:
+bob@devapp01's password: 
+caleston-code.tar.gz                                       100% 1439KB 224.9MB/s   00:00 
+```
+
+
 
 

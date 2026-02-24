@@ -1637,8 +1637,8 @@ Lets Set Node Affinity to the deployment to place the pods on `node01` only.
 ```
 
  
- ```yaml
-    spec:
+ ```
+   spec:
       containers:
       - image: nginx
         imagePullPolicy: Always
@@ -1652,7 +1652,8 @@ Lets Set Node Affinity to the deployment to place the pods on `node01` only.
                   operator: In
                   values:
                   - blue
-```
+ ```
+ 
 
 
 ```sh
@@ -6052,3 +6053,9 @@ PolicyRule:
 ```
 
 notice that the cluster role clsuter-admin can do any action in any namespace
+
+
+
+
+
+
