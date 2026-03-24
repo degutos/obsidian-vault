@@ -82,7 +82,7 @@ export ETCDCTL_API=3
 
 When the API version is not set, it is assumed to be set to version 2. And version 3 commands listed above don’t work. When API version is set to version 3, version 2 commands listed above don’t work.
 
-Apart from that, you must also specify the path to certificate files so that ETCDCTL can authenticate to the ETCD API Server. The certificate files are available in the etcd-master at the following path. We discuss more about certificates in the security section of this course. So don’t worry if this looks complex:
+Apart from that, you must also specify the path to certificate files so that ETCDCTL can authenticate to the ETCD API Server. The certificate files are available in the etcd-master at the following path. We discuss more about certificates in the security section of this course. So don’t worry if this looks complex
 
 ```
 --cacert /etc/kubernetes/pki/etcd/ca.crt
@@ -5600,7 +5600,7 @@ clusters:
 
 - name: test-cluster-1
   cluster:
-    certificate-authority: /etc/kubernetes/pki/ca.crt
+    certificate-authority : /etc/kubernetes/pki/ca.crt
     server: https://controlplane:6443
 
 contexts:
@@ -6059,3 +6059,64 @@ notice that the cluster role clsuter-admin can do any action in any namespace
 
 
 
+
+
+
+# Designing and install kube cluster
+
+
+- what is the purpose of this cluster
+- Cloud or on-Prem
+- workloads to run in the cluster
+- what network traffic will run
+
+
+### Basic options for Kube install
+
+- Minikube
+- Kind
+- kubeadm 
+- AWS (EKS)
+- Google (GKE)
+- Azure (AKS)
+
+
+- Consider having at least 02 Master nodes for high availability in production workload
+- Masters usually uses port 6443 - https://master1:6443. For more master we might want to use LB.
+- Also consider having 02 ETCD database nodes for redundancy purpose (for external etcd topology).
+- ETCD runs on port 2379
+- ETCD usually has one node as leader ETCD and others are followers. Leader ETCD can write and read, the followers can only read information. The information just added into the leader ETCD is replicated to all others followers and the update is considered successfully only when all the ETCD nodes in the cluster has the updated information. 
+- It is considering having at least 3 nodes as ETCD for fault tolerance.
+ 
+
+
+## kubeadm
+
+- Master
+	- kube-apiserver
+	- etcd
+	- node-controller
+	- replica-controller
+
+- Worker
+	- kubectl 
+	- Container-runtime
+
+
+### Steps
+
+1. Separate at least 03 nodes: Master , worker-node-01 , worker-node-02
+2. Install containerd across all 03 nodes
+3. Install kubeadm across all 03 nodes
+4. Initialize kubeadm cluster in the Master node
+5. Install Network layer the pod-network
+6. Join the worker nodes to the master.
+
+
+#### Resources
+
+The vagrant file used in the next video is available here:
+[https://github.com/kodekloudhub/certified-kubernetes-administrator-course](https://github.com/kodekloudhub/certified-kubernetes-administrator-course)
+
+Here’s the link to the documentation:
+[https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/)

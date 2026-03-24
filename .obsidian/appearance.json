@@ -1,4 +1,8 @@
 {
   "interfaceFontFamily": "Inter",
-  "textFontFamily": "Fira Code"
+  "textFontFamily": "Monaco,Fira Code,JetBrains Mono",
+  "monospaceFontFamily": "Fira Code,Monaco,JetBrains Mono",
+  "baseFontSize": 16,
+  "theme": "system",
+  "cssTheme": "Tokyo Night"
 }
