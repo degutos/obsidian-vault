@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "daily/2026-03-24.md",
+                "file": "SRE-Kodekloud/Kube Udemy - Mateus Miller.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "2026-03-24"
+              "title": "Kube Udemy - Mateus Miller"
             }
           },
           {
@@ -33,8 +33,7 @@
               "title": "Release Notes 1.12.7"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -184,10 +183,10 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "6781619c46c6efb4",
+  "active": "c6e57beb902ceb62",
   "lastOpenFiles": [
-    "SRE-Kodekloud/Kube Udemy - Mateus Miller.md",
     "daily/2026-03-24.md",
+    "SRE-Kodekloud/Kube Udemy - Mateus Miller.md",
     "SRE-Kodekloud/Site Reliability Engineer.md",
     "SRE-Kodekloud/CKA - Certified Kubernetes Administrator.md",
     "daily/2026-03-17.md",

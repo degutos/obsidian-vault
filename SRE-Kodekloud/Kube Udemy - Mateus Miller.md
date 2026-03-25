@@ -614,14 +614,189 @@ source <(kubectl completion zsh)
 we can add this line to ~/.zshrc file
 
 
+### How to view kube config using kubeadm
+
+```sh
+kubeadm config view 
+```
+
+
+Example:
+
+```sh
+kubectl config view
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority: /Users/degutos/.bluemix/plugins/container-service/clusters/cluster-fra-test-delme-full-cfgm29vf0a9mevqne4ag/ca-aaa00-cluster-fra-test-delme-full.pem
+    server: https://c110.eu-de.containers.cloud.ibm.com:31610
+  name: cluster-fra-test-delme-full/cfgm29vf0a9mevqne4ag
+- cluster:
+    certificate-authority-data: DATA+OMITTED
+    server: https://127.0.0.1:50192
+  name: docker-desktop
+- cluster:
+    certificate-authority-data: DATA+OMITTED
+    server: https://127.0.0.1:49662
+  name: kind-girus
+- cluster:
+    certificate-authority-data: DATA+OMITTED
+    server: https://127.0.0.1:57420
+  name: kind-kind
+- cluster:
+    certificate-authority: /Users/degutos/.minikube/ca.crt
+    extensions:
+    - extension:
+        last-update: Sat, 10 Feb 2024 14:35:50 GMT
+        provider: minikube.sigs.k8s.io
+        version: v1.29.0
+      name: cluster_info
+    server: https://127.0.0.1:49524
+  name: minikube
+- cluster:
+    certificate-authority-data: DATA+OMITTED
+    server: https://127.0.0.1:26443
+  name: orbstack
+- cluster:
+    certificate-authority: /Users/degutos/.bluemix/plugins/container-service/clusters/test-cluster-delme-fra-cfg16bcf0b5r1jatqen0/ca-aaa00-test-cluster-delme-fra.pem
+    server: https://c109.eu-de.containers.cloud.ibm.com:31564
+  name: test-cluster-delme-fra/cfg16bcf0b5r1jatqen0
+contexts:
+- context:
+    cluster: cluster-fra-test-delme-full/cfgm29vf0a9mevqne4ag
+    namespace: default
+    user: andre.gonzaga1@ibm.com/a97f936a990faca0fa2cc5edf374f192/iam.cloud.ibm.com-identity
+  name: cluster-fra-test-delme-full/cfgm29vf0a9mevqne4ag
+- context:
+    cluster: docker-desktop
+    user: docker-desktop
+  name: docker-desktop
+- context:
+    cluster: kind-girus
+    user: kind-girus
+  name: kind-girus
+- context:
+    cluster: kind-kind
+    user: kind-kind
+  name: kind-kind
+- context:
+    cluster: minikube
+    user: minikube
+  name: minikube
+- context:
+    cluster: orbstack
+    user: orbstack
+  name: orbstack
+- context:
+    cluster: test-cluster-delme-fra/cfg16bcf0b5r1jatqen0
+    namespace: default
+    user: andre.gonzaga1@ibm.com/a97f936a990faca0fa2cc5edf374f192/iam.cloud.ibm.com-identity
+  name: test-cluster-delme-fra/cfg16bcf0b5r1jatqen0
+current-context: orbstack
+kind: Config
+preferences: {}
+users:
+- name: andre.gonzaga1@ibm.com/a97f936a990faca0fa2cc5edf374f192/iam.cloud.ibm.com-identity
+  user:
+    auth-provider:
+      config:
+        client-id: kube
+        client-secret: kube
+        id-token: eyJraWQiOiIyMDIzMDExMTA4MjkiLCJhbGciOiJSUzI1NiJ9.eyJpYW1faWQiOiJJQk1pZC01MEhDMlQ4MFVNIiwiaXNzIjoiaHR0cHM6Ly9pYW0uY2xvdWQuaWJtLmNvbS9pZGVudGl0eSIsInN1YiI6IkFuZHJlLkdvbnphZ2ExQGlibS5jb20iLCJhdWQiOiJrdWJlIiwiZ2l2ZW5fbmFtZSI6IkFORFJFIEFVR1VTVE8iLCJmYW1pbHlfbmFtZSI6IkdPTlpBR0EiLCJuYW1lIjoiQU5EUkUgQVVHVVNUTyBHT05aQUdBIiwiZW1haWwiOiJBbmRyZS5Hb256YWdhMUBpYm0uY29tIiwiZXhwIjoxNjc1ODg4NzczLCJzY29wZSI6ImlibSBvcGVuaWQgY29udGFpbmVycy1rdWJlcm5ldGVzIiwiaWF0IjoxNjc1ODg1MjI1LCJhdXRobiI6eyJzdWIiOiJBbmRyZS5Hb256YWdhMUBpYm0uY29tIiwiaWFtX2lkIjoiSUJNaWQtNTBIQzJUODBVTSIsIm5hbWUiOiJBTkRSRSBBVUdVU1RPIEdPTlpBR0EiLCJnaXZlbl9uYW1lIjoiQU5EUkUgQVVHVVNUTyIsImZhbWlseV9uYW1lIjoiR09OWkFHQSIsImVtYWlsIjoiQW5kcmUuR29uemFnYTFAaWJtLmNvbSJ9LCJzdWJfYTk3ZjkzNmE5OTBmYWNhMGZhMmNjNWVkZjM3NGYxOTIiOiJhbmRyZS5nb256YWdhMUBpYm0uY29tIiwiaWFtX2lkX2E5N2Y5MzZhOTkwZmFjYTBmYTJjYzVlZGYzNzRmMTkyIjoiSUJNaWQtNTBIQzJUODBVTSIsInJlYWxtZWRfc3ViX2E5N2Y5MzZhOTkwZmFjYTBmYTJjYzVlZGYzNzRmMTkyIjoiSUJNaWQtYW5kcmUuZ29uemFnYTFAaWJtLmNvbSIsImdyb3Vwc19hOTdmOTM2YTk5MGZhY2EwZmEyY2M1ZWRmMzc0ZjE5MiI6W119.B-ETxh4-xh26uAu5penGTLOOepbLsdnYfmi382NOHv3fMqRsrsg-mTPr8VRwvA4O2O1376yWfptzn9l49GBPsdJoVbjUuboVE7c0FdlnZoV8Dio_08I7wXWIvQ_YZbSFC6vwKpwDNGz9fPN-zNGPrkpF9HPIImh89T14AHAuNNI5ahiIxLDB8KDDcXBv7Uy53ZrACYtHe8SRQK9ku2XfGFcKaqFOcVObzHbKktzIJ6mw69qkYMbn5SO6nOOnQ1L5SClutyouYjg3X7trD1hePFHrWKuLNmDdOQp9LRPZ7BuGea0xJB9E9lgWIcgZ7qpQFn1wUn1ad07aZXVqXScX5g
+        idp-issuer-url: https://iam.cloud.ibm.com/identity
+        refresh-token: eyJhbGciOiJydCJ9.eyJpYW1faWQiOiJJQk1pZC01MEhDMlQ4MFVNIiwiYWNjb3VudF9pZCI6ImE5N2Y5MzZhOTkwZmFjYTBmYTJjYzVlZGYzNzRmMTkyIn0.f8qKLhsAXtIMaWAM_2_qvchZJ18OPgR2yXyMWADPo-NCr0XvaGxrihimL7KZSfun8UKd07oQGqsAfo45vK3ZY2HFjEFrOHfRLhE-GqCXJYci3dCUsmc1n1Yr0VOxiuZ3GmiorR-etlFwTwxEbZSVMJjkIfeEbbG0ERtK1tPAFs796XN2oCspBhyZYiY-vkeZ_IzhfZi1-zpI52-ql-tECEEgILGHjd8sVusPRBhbAA-bUrjaG6-FDVOsmFbfw9esnCCoFZin7UX6-_yc0x-Gw1IOJLNH5gOd8mNxupq-VsnqT4cBiKpxO-gN8ryvQgM7pbB0JLvClocgJI_fz4Y3opc57qQQL9Hec7nyRYzLlaVVHBJ9xgsNbeS1pWVrPeJ_NzmCGFt28lyKRBjoF67qg-nNkmdrVL1j5w4zeLoafAq59wVd4S5-zzbQpLvak6qCi2pvtpqU3y0LIRemWsRLa9v3_kP0El41LKglWTzIQOrW4U2yu28rB8zSWfWxwjA24QZ2SE7xSfldLD75cP5I2SbfEa1knA7oRszXSNnH_t0z1yeywLlHnUldT97A9PrTGEm6BxH-mP75oPdiaSecB7O9g--cmuHHVXW-EunGo0orWZg7pMt22BOk_mEgmp7Yv4gAFvXX4KuixLfzN8wKB4afH7K_Zea1hm8nJdQcFhAbPL62Fs05LThekJA-Jh4uJjNbKqXUYunrKPHm8QtoVrNdru4UPf7ceq4e0HTsEJm1GFVROtd0i3nS1lJ_Fu-nb0tQg0E_BQx-NxXCCc8zcV1hpZjgZVHcGBzqoiibmrjHu218MI2duy1Ep9hiPsZEouQIsQgqIGRYF7BF3PDGurpytwf4JzovE77b3_tQ2ygSsU5v2MF8IPQbN4esm9r_NnAQfD6YG8HcirUXT7b48rFq7MsbrzRx-srrkZlAHDDQj5HC2eT8Pk8XNY7uDaDWLjaaZC8a6BLLDY9iGNnjYjw2UChy_mXuvNTaJLwgScEXljEUo3-BKKEeLqMGl16hnmnghs0eaogUPEw7ASPO9SVbCq8Tm-IF5wECKMvpYtrPhTjSD1ojzUy5YuflyMLJnfuKqzEp1ndz_PGzPr8ALjZrdnFC1DOdlBGwoiEpviBTYKsbGhTyYQqgzuM39xRU4OX3HkeHHeuzeZ8wKFvlDBpT2UTMrjeqt_wFT3j5qwnG9v3TUVNlqU0YWN5I9Ye_FzreaXYYJnRM91hBEW6Cjcaoup42wMvxYDYUAKwzW0xE6dNi9FVam5HeWg9RsrHBr3YEV2MSG0yZiybfDQEpzkXCUMr99zWIK6vSQBOlJHvWANl2qHKgmKP6ipI1w77QrsLNy03cWnt6JF-tOjWnn6J2
+      name: oidc
+- name: docker-desktop
+  user:
+    client-certificate-data: DATA+OMITTED
+    client-key-data: DATA+OMITTED
+- name: kind-girus
+  user:
+    client-certificate-data: DATA+OMITTED
+    client-key-data: DATA+OMITTED
+- name: kind-kind
+  user:
+    client-certificate-data: DATA+OMITTED
+    client-key-data: DATA+OMITTED
+- name: minikube
+  user:
+    client-certificate: /Users/degutos/.minikube/profiles/minikube/client.crt
+    client-key: /Users/degutos/.minikube/profiles/minikube/client.key
+- name: orbstack
+  user:
+    client-certificate-data: DATA+OMITTED
+    client-key-data: DATA+OMITTED
+```
+
+
+
+To display with the certificate data:
+
+```sh
+➜  ~ kubectl config view --flatten
+```
 
 
 
 
+### How to merge 02 kubeconfig into a single config
+
+
+```sh
+KUBECONFIG=~/.kube/config-file-1:$HOME/.kube/config-file-2 kubectl config view --flatten > ~/.kube/config-merged 
+```
+
+
+Make sure you have different cluster name, different user and different context in both files.
+If you have same user, you can edit your config file before merging and change the user name 
 
 
 
+## Debuging communication between kubectl and API server
 
 
+```sh
+kubectl get no -v9
+I0324 20:58:13.891638   51260 loader.go:402] Config loaded from file:  /Users/degutos/.kube/config
+I0324 20:58:13.892141   51260 envvar.go:172] "Feature gate default state" feature="ClientsPreferCBOR" enabled=false
+I0324 20:58:13.892155   51260 envvar.go:172] "Feature gate default state" feature="InformerResourceVersion" enabled=false
+I0324 20:58:13.892158   51260 envvar.go:172] "Feature gate default state" feature="WatchListClient" enabled=false
+I0324 20:58:13.892161   51260 envvar.go:172] "Feature gate default state" feature="ClientsAllowCBOR" enabled=false
+I0324 20:58:13.894656   51260 helper.go:113] "Request Body" body=""
+I0324 20:58:13.894850   51260 round_trippers.go:473] curl -v -XGET  -H "Accept: application/json;as=Table;v=v1;g=meta.k8s.io,application/json;as=Table;v=v1beta1;g=meta.k8s.io,application/json" -H "User-Agent: kubectl/v1.32.1 (darwin/arm64) kubernetes/e9c9be4" 'https://127.0.0.1:26443/api/v1/nodes?limit=500'
+I0324 20:58:13.895303   51260 round_trippers.go:517] HTTP Trace: Dial to tcp:127.0.0.1:26443 succeed
+I0324 20:58:13.920761   51260 round_trippers.go:560] GET https://127.0.0.1:26443/api/v1/nodes?limit=500 200 OK in 25 milliseconds
+I0324 20:58:13.920782   51260 round_trippers.go:577] HTTP Statistics: DNSLookup 0 ms Dial 0 ms TLSHandshake 6 ms ServerProcessing 19 ms Duration 25 ms
+I0324 20:58:13.920786   51260 round_trippers.go:584] Response Headers:
+I0324 20:58:13.920790   51260 round_trippers.go:587]     Audit-Id: bab1f395-7d2e-4b8a-8c29-8370a8172c6d
+I0324 20:58:13.920793   51260 round_trippers.go:587]     Cache-Control: no-cache, private
+I0324 20:58:13.920795   51260 round_trippers.go:587]     Content-Type: application/json
+I0324 20:58:13.920797   51260 round_trippers.go:587]     X-Kubernetes-Pf-Flowschema-Uid: 24b5f764-0105-43c8-b411-02c2ae799b8c
+I0324 20:58:13.920799   51260 round_trippers.go:587]     X-Kubernetes-Pf-Prioritylevel-Uid: 22750bef-cd53-4c91-a819-1cfe74467311
+I0324 20:58:13.920800   51260 round_trippers.go:587]     Date: Tue, 24 Mar 2026 20:58:13 GMT
+I0324 20:58:13.920868   51260 helper.go:113] "Response Body" body=<
+	{"kind":"Table","apiVersion":"meta.k8s.io/v1","metadata":{"resourceVersion":"399737"},"columnDefinitions":[{"name":"Name","type":"string","format":"name","description":"Name must be unique within a namespace. Is required when creating resources, although some resources may allow a client to request the generation of an appropriate name automatically. Name is primarily intended for creation idempotence and configuration definition. Cannot be updated. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names#names","priority":0},{"name":"Status","type":"string","format":"","description":"The status of the node","priority":0},{"name":"Roles","type":"string","format":"","description":"The roles of the node","priority":0},{"name":"Age","type":"string","format":"","description":"CreationTimestamp is a timestamp representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations. Clients may not set this value. It is represented in RFC3339 form and is in UTC.\n\nPopulated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata","priority":0},{"name":"Version","type":"string","format":"","description":"Kubelet Version reported by the node.","priority":0},{"name":"Internal-IP","type":"string","format":"","description":"List of addresses reachable to the node. Queried from cloud provider, if available. More info: https://kubernetes.io/docs/reference/node/node-status/#addresses Note: This field is declared as mergeable, but the merge key is not sufficiently unique, which can cause data corruption when it is merged. Callers should instead use a full-replacement patch. See https://pr.k8s.io/79391 for an example. Consumers should assume that addresses can change during the lifetime of a Node. However, there are some exceptions where this may not be possible, such as Pods that inherit a Node's address in its own status or consumers of the downward API (status.hostIP).","priority":1},{"name":"External-IP","type":"string","format":"","description":"List of addresses reachable to the node. Queried from cloud provider, if available. More info: https://kubernetes.io/docs/reference/node/node-status/#addresses Note: This field is declared as mergeable, but the merge key is not sufficiently unique, which can cause data corruption when it is merged. Callers should instead use a full-replacement patch. See https://pr.k8s.io/79391 for an example. Consumers should assume that addresses can change during the lifetime of a Node. However, there are some exceptions where this may not be possible, such as Pods that inherit a Node's address in its own status or consumers of the downward API (status.hostIP).","priority":1},{"name":"OS-Image","type":"string","format":"","description":"OS Image reported by the node from /etc/os-release (e.g. Debian GNU/Linux 7 (wheezy)).","priority":1},{"name":"Kernel-Version","type":"string","format":"","description":"Kernel Version reported by the node from 'uname -r' (e.g. 3.16.0-0.bpo.4-amd64).","priority":1},{"name":"Container-Runtime","type":"string","format":"","description":"ContainerRuntime Version reported by the node through runtime remote API (e.g. containerd://1.4.2).","priority":1}],"rows":[{"cells":["orbstack","Ready","control-plane,master","24d","v1.33.5+orb1","192.168.139.2","\u003cnone\u003e","OrbStack","6.17.8-orbstack-00308-g8f9c941121b1","docker://28.5.2"],"object":{"kind":"PartialObjectMetadata","apiVersion":"meta.k8s.io/v1","metadata":{"name":"orbstack","uid":"b5fd7360-41a6-444f-89f6-8068c1c7fbed","resourceVersion":"399714","creationTimestamp":"2026-02-28T11:01:34Z","labels":{"beta.kubernetes.io/arch":"arm64","beta.kubernetes.io/instance-type":"k3s","beta.kubernetes.io/os":"linux","kubernetes.io/arch":"arm64","kubernetes.io/hostname":"orbstack","kubernetes.io/os":"linux","node-role.kubernetes.io/control-plane":"true","node-role.kubernetes.io/master":"true","node.kubernetes.io/instance-type":"k3s"},"annotations":{"alpha.kubernetes.io/provided-node-ip":"192.168.139.2,fd07:b51a:cc66::2","flannel.alpha.coreos.com/backend-data":"null","flannel.alpha.coreos.com/backend-type":"host-gw","flannel.alpha.coreos.com/backend-v6-data":"null","flannel.alpha.coreos.com/kube-subnet-manager":"true","flannel.alpha.coreos.com/public-ip":"192.168.139.2","flannel.alpha.coreos.com/public-ipv6":"fd07:b51a:cc66::2","k3s.io/hostname":"orbstack","k3s.io/internal-ip":"192.168.139.2,fd07:b51a:cc66::2","k3s.io/node-args":"[\"server\",\"--apiVersion\",\"kubelet.config.k8s.io/v1beta1\",\"--kind\",\"KubeletConfiguration\",\"--disable\",\"metrics-server,traefik,coredns\",\"--https-listen-port\",\"26443\",\"--lb-server-port\",\"26444\",\"--docker\",\"--protect-kernel-defaults\",\"--flannel-backend\",\"host-gw\",\"--disable-network-policy\",\"--cluster-cidr\",\"192.168.194.0/25,fd07:b51a:cc66:a::/72\",\"--service-cidr\",\"192.168.194.128/25,fd07:b51a:cc66:a:8000::/112\",\"--kube-controller-manager-arg\",\"node-cidr-mask-size-ipv4=25\",\"--kube-controller-manager-arg\",\"node-cidr-mask-size-ipv6=72\",\"--tls-san\",\"k8s.orb.local\",\"--tls-san\",\"docker.orb.local\",\"--write-kubeconfig\",\"/run/kubeconfig.yml\",\"--kubelet-arg\",\"--allowed-unsafe-sysctls\",\"net.*\",\"--kubelet-arg\",\"--config\",\"/etc/kubelet.conf\"]","k3s.io/node-config-hash":"QM7CWH5JDJDY2ONSQKPC2C65L3ZDEWAKWSADSH7ZH32MIPC5WICQ====","k3s.io/node-env":"{}","node.alpha.kubernetes.io/ttl":"0","volumes.kubernetes.io/controller-managed-attach-detach":"true"},"finalizers":["wrangler.cattle.io/node"],"managedFields":[{"manager":"k3s-supervisor@orbstack","operation":"Update","apiVersion":"v1","time":"2026-02-28T11:01:35Z","fieldsType":"FieldsV1","fieldsV1":{"f:metadata":{"f:finalizers":{".":{},"v:\"wrangler.cattle.io/node\"":{}},"f:labels":{"f:node-role.kubernetes.io/control-plane":{},"f:node-role.kubernetes.io/master":{}}}}},{"manager":"k3s","operation":"Update","apiVersion":"v1","time":"2026-02-28T11:01:40Z","fieldsType":"FieldsV1","fieldsV1":{"f:metadata":{"f:annotations":{".":{},"f:alpha.kubernetes.io/provided-node-ip":{},"f:k3s.io/hostname":{},"f:k3s.io/internal-ip":{},"f:k3s.io/node-args":{},"f:k3s.io/node-config-hash":{},"f:k3s.io/node-env":{},"f:node.alpha.kubernetes.io/ttl":{},"f:volumes.kubernetes.io/controller-managed-attach-detach":{}},"f:labels":{".":{},"f:beta.kubernetes.io/arch":{},"f:beta.kubernetes.io/instance-type":{},"f:beta.kubernetes.io/os":{},"f:kubernetes.io/arch":{},"f:kubernetes.io/hostname":{},"f:kubernetes.io/os":{},"f:node.kubernetes.io/instance-type":{}}},"f:spec":{"f:podCIDR":{},"f:podCIDRs":{".":{},"v:\"192.168.194.0/25\"":{},"v:\"fd07:b51a:cc66:a::/72\"":{}},"f:providerID":{}}}},{"manager":"k3s","operation":"Update","apiVersion":"v1","time":"2026-03-24T20:56:52Z","fieldsType":"FieldsV1","fieldsV1":{"f:metadata":{"f:annotations":{"f:flannel.alpha.coreos.com/backend-data":{},"f:flannel.alpha.coreos.com/backend-type":{},"f:flannel.alpha.coreos.com/backend-v6-data":{},"f:flannel.alpha.coreos.com/kube-subnet-manager":{},"f:flannel.alpha.coreos.com/public-ip":{},"f:flannel.alpha.coreos.com/public-ipv6":{}}},"f:status":{"f:allocatable":{"f:ephemeral-storage":{}},"f:capacity":{"f:ephemeral-storage":{}},"f:conditions":{"k:{\"type\":\"DiskPressure\"}":{"f:lastHeartbeatTime":{}},"k:{\"type\":\"MemoryPressure\"}":{"f:lastHeartbeatTime":{}},"k:{\"type\":\"PIDPressure\"}":{"f:lastHeartbeatTime":{}},"k:{\"type\":\"Ready\"}":{"f:lastHeartbeatTime":{},"f:message":{},"f:reason":{},"f:status":{}}},"f:images":{},"f:nodeInfo":{"f:bootID":{}}}},"subresource":"status"}]}}}]}
+ >
+NAME       STATUS   ROLES                  AGE   VERSION
+orbstack   Ready    control-plane,master   24d   v1.33.5+orb1
+```
+
+
+
+> [!info]
+> We can use a JSON formatter to display the above json content
+
+
+We can try to curl and reach out the api
+
+```sh
+curl https://127.0.0.1:26443/api/v1/nodes?limit=500 -k -I
+HTTP/2 401 
+audit-id: 4d088f31-96d8-4283-bf53-b5bfe124df7c
+cache-control: no-cache, private
+content-type: application/json
+content-length: 157
+date: Tue, 24 Mar 2026 21:18:06 GMT
+```
 
 
