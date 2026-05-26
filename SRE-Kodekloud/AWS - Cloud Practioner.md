@@ -82,6 +82,82 @@ IAM handles who is authenticated and what are they authorized to do.
 - Edge locations are smaller points of presence where services are run closer to customers, mostly content deliver
 - Local zones are extensions of AWS regions located near users in select metropolitan areas, provide services like ECS and EBS.
 
+## Resources for Security of AWS
+
+
+### WAF - Web application Firewall 
+
+WAF allow you to monitor HTTP requests that are forwarded to web applications like:
+- Amazon CloudFront
+- Amazon API Gateway
+- Application LoadBalancer
+
+Allow you to create criteria like IP addres of request, coutry of request, string or regex. You can allow , Block, count, Captcha.
+
+### AWS Shield
+
+Detects and mitigates DDOS attacks.
+
+
+### AWS network firewall
+
+Statfull firewall to protect traffic.
+Monitor traffic entering and leaving VPCs.
+
+
+
+### AWS Inspector
+
+Scan workloads running for vulnerabilities against EC2, ECR, Lambda
+Installing new package, installing patch, new CVE is published.
+
+
+### AWS GuardDyty
+
+Monitor any API activity, notify you, potential unauthorized deployment, S3 bucket compromised, etc.
+
+
+### Amazon Detective 
+
+AI learning that monitor your logs, CloudTrail logs and others. It creates dashboards to facilitate your analysis.
+
+
+### AWS Config
+
+Monitor all configuration on your account, tracks and audits configuration and resources 
+
+
+### Security Hub
+
+Automates security checks and bring securiy alerts 
+
+### Cloud trail
+
+Tracks user activity, it is kind of activity tracker, it tracks who did what in our account. 
+
+### Security Lake
+
+Agregate all logs collected from all services.
+
+### Macie
+
+Monitor for sensitive data exposed in S3 for example.
+
+### Other services
+
+- Firewall Manager - to protect several different accounts
+- Resource Access manager, it helps share resources between different acounts, Example, Private subnet can be shared between two or more accounts. 
+- Cognito, it helps you to manage several different accounts credentials.
+- IAM - Identify and access management. Users, groups and roles.
+- IAM Center, to create users with access to different accounts
+- Secrets Manager, store all credentials/secrets
+- AWS Certificate Manager, for private and public certs
+- AWS Private certificate Authority, for private CAs.
+- KMS - key management service, to manage and create keys 
+- HSM - cloud Hardware Security Module, all keys are securely stored on HSM and never leave the device.
+- Cloud HSM, manages key in the cloud.
+
+
 
 
 ## AWS Networking

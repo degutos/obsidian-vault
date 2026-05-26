@@ -2002,4 +2002,56 @@ education: |
 ```
 
 
+### Krew - plugin for kubectl 
+
+
+https://krew.sigs.k8s.io/docs/user-guide/quickstart/
+
+This plugin assist kubectl command. 
+There is one plugin kubectl krew neat that filter the yaml output 
+
+For example:
+
+```sh
+kubectl get pod nginx -o yaml | kubectl krew neat > pod-nginx.yaml
+```
+
+
+
+### Namespace
+
+Lets create a namespace using dry-run argument.
+
+```sh
+kubectl create ns comunidade-devops --dry-run=client -o yaml | kubectl neat > namespace.yaml
+```
+
+
+Let apply now
+
+```sh
+kubectl apply -f namespace.yaml 
+namespace/comunidade-devops created
+```
+
+
+Lets now check all namespaces
+
+```sh
+kubectl get ns
+NAME                STATUS   AGE
+comunidade-devops   Active   67s
+default             Active   31d
+kube-node-lease     Active   31d
+kube-public         Active   31d
+kube-system         Active   31d
+```
+
+
+To change the default namespace:
+
+```sh
+kubectl config set-context --current --namespace comunidade-devops
+```
+
 
