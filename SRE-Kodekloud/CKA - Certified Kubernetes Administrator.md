@@ -100,6 +100,12 @@ kubectl exec etcd-controlplane -n kube-system -- sh -c "ETCDCTL_API=3 etcdctl ge
   --key /etc/kubernetes/pki/etcd/server.key"
 ```
 
+Run inside the etcd-master pod
+
+```sh
+kubectl exec etcd-master -n kube-system etcdctl get / --prefix --key-only
+```
+
 
 
 ## Kube-api

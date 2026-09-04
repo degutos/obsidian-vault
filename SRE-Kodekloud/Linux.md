@@ -867,3 +867,22 @@ caleston-code.tar.gz                                       100% 1439KB 224.9MB/s
 
 
 
+## DD 
+
+Creating a dd job and killing with -SIGUSR1 
+
+```sh
+bob@centos-host ~ ✦ ➜  dd if=/dev/zero of=/dev/null &
+[1] 2912
+
+bob@centos-host ~ ✦ ➜  jobs
+[1]+  Running                 dd if=/dev/zero of=/dev/null &
+
+bob@centos-host ~ ✦ ➜  kill -SIGUSR1 %1
+16823721+0 records in
+16823721+0 records out
+8613745152 bytes (8.6 GB, 8.0 GiB) copied, 21.5117 s, 400 MB/s
+```
+
+
+
