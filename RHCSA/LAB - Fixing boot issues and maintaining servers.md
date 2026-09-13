@@ -34,3 +34,24 @@ $ systemctl reboot
 
 
 
+
+## Fixing system or changing root password on RHEL 10
+
+
+- In the boot grub manu interrupt the count down and edit pressing "i" then got to "kernel" line at the end.
+- Add rd.break at the end of the "kernel..." line
+- When you get your prompt login type:
+
+```
+$ mount -o remount,rw /sysroot 
+$ chroot /sysroot
+```
+
+
+
+
+
+
+
+
+
