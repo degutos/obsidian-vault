@@ -1827,4 +1827,388 @@ Disk stats (read/write):
 ```
 
 
+OR lets test the NVMe running on LVM partition
+
+```sh
+degutos@centos:/mnt/xfs-test$ sudo fio \
+  --name=randread \
+  --filename=/mnt/lvm-test/testfile \
+  --size=2G \
+  --rw=randread \
+  --bs=4k \
+  --iodepth=32 \
+  --numjobs=2 \
+  --ioengine=libaio \
+  --runtime=30 \
+  --time_based
+[sudo] password for degutos:
+randread: (g=0): rw=randread, bs=(R) 4096B-4096B, (W) 4096B-4096B, (T) 4096B-4096B, ioengine=libaio, iodepth=32
+...
+fio-3.36
+Starting 2 processes
+randread: Laying out IO file (1 file / 2048MiB)
+Jobs: 2 (f=2): [r(2)][100.0%][r=51.3MiB/s][r=13.1k IOPS][eta 00m:00s]
+randread: (groupid=0, jobs=1): err= 0: pid=11119: Mon Sep 14 06:08:38 2026
+  read: IOPS=7038, BW=27.5MiB/s (28.8MB/s)(825MiB/30001msec)
+    slat (nsec): min=708, max=17705k, avg=141062.87, stdev=79706.68
+    clat (nsec): min=1375, max=39335k, avg=4404169.23, stdev=649618.78
+     lat (usec): min=141, max=39498, avg=4545.23, stdev=662.18
+    clat percentiles (usec):
+     |  1.00th=[ 3425],  5.00th=[ 3654], 10.00th=[ 3818], 20.00th=[ 3982],
+     | 30.00th=[ 4113], 40.00th=[ 4228], 50.00th=[ 4359], 60.00th=[ 4490],
+     | 70.00th=[ 4621], 80.00th=[ 4752], 90.00th=[ 5014], 95.00th=[ 5211],
+     | 99.00th=[ 5997], 99.50th=[ 6259], 99.90th=[ 8356], 99.95th=[10552],
+     | 99.99th=[27132]
+   bw (  KiB/s): min=25152, max=29672, per=50.10%, avg=28199.46, stdev=1227.27, samples=59
+   iops        : min= 6288, max= 7418, avg=7049.90, stdev=306.75, samples=59
+  lat (usec)   : 2=0.01%, 250=0.01%, 500=0.01%, 750=0.01%, 1000=0.01%
+  lat (msec)   : 2=0.01%, 4=20.46%, 10=79.46%, 20=0.05%, 50=0.02%
+  cpu          : usr=1.18%, sys=6.48%, ctx=189321, majf=0, minf=45
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=100.0%, >=64=0.0%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.1%, 64=0.0%, >=64=0.0%
+     issued rwts: total=211155,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=32
+randread: (groupid=0, jobs=1): err= 0: pid=11120: Mon Sep 14 06:08:38 2026
+  read: IOPS=7032, BW=27.5MiB/s (28.8MB/s)(824MiB/30001msec)
+    slat (nsec): min=875, max=22876k, avg=141179.57, stdev=83717.26
+    clat (nsec): min=1875, max=40261k, avg=4407659.11, stdev=648440.92
+     lat (usec): min=252, max=40387, avg=4548.84, stdev=661.13
+    clat percentiles (usec):
+     |  1.00th=[ 3392],  5.00th=[ 3687], 10.00th=[ 3818], 20.00th=[ 3982],
+     | 30.00th=[ 4146], 40.00th=[ 4228], 50.00th=[ 4359], 60.00th=[ 4490],
+     | 70.00th=[ 4621], 80.00th=[ 4752], 90.00th=[ 5014], 95.00th=[ 5276],
+     | 99.00th=[ 5997], 99.50th=[ 6325], 99.90th=[ 8356], 99.95th=[ 9634],
+     | 99.99th=[27657]
+   bw (  KiB/s): min=25144, max=29776, per=50.07%, avg=28182.64, stdev=1266.81, samples=59
+   iops        : min= 6286, max= 7444, avg=7045.66, stdev=316.70, samples=59
+  lat (usec)   : 2=0.01%, 500=0.01%, 750=0.01%, 1000=0.01%
+  lat (msec)   : 2=0.01%, 4=20.17%, 10=79.77%, 20=0.03%, 50=0.01%
+  cpu          : usr=0.83%, sys=6.81%, ctx=189286, majf=0, minf=45
+  IO depths    : 1=0.1%, 2=0.1%, 4=0.1%, 8=0.1%, 16=0.1%, 32=100.0%, >=64=0.0%
+     submit    : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.0%, 64=0.0%, >=64=0.0%
+     complete  : 0=0.0%, 4=100.0%, 8=0.0%, 16=0.0%, 32=0.1%, 64=0.0%, >=64=0.0%
+     issued rwts: total=210989,0,0,0 short=0,0,0,0 dropped=0,0,0,0
+     latency   : target=0, window=0, percentile=100.00%, depth=32
+
+Run status group 0 (all jobs):
+   READ: bw=55.0MiB/s (57.6MB/s), 27.5MiB/s-27.5MiB/s (28.8MB/s-28.8MB/s), io=1649MiB (1729MB), run=30001-30001msec
+
+Disk stats (read/write):
+    dm-2: ios=377782/2, sectors=3022256/34, merge=0/0, ticks=49070/0, in_queue=49070, util=99.27%, aggrios=378585/2, aggsectors=3028680/34, aggrmerge=0/0, aggrticks=51851/0, aggrin_queue=51852, aggrutil=99.06%
+  nvme0n1: ios=378585/2, sectors=3028680/34, merge=0/0, ticks=51851/0, in_queue=51852, util=99.06%
+```
+
+
+Lets notice the important things:
+
+Last line:  util=99.06%
+
+Also notice the IOPs
+
+```sh
+read: IOPS=7038
+read: IOPS=7032
+```
+
+since we have 02 jobs we need to look at those 02 IOPS
+
+Two jobs:
+
+```
+7038 + 7032 ≈ 14,070 IOPS
+```
+
+So our IOPS is 14k IOPS
+
+and also look at this
+
+```sh
+Run status group 0 (all jobs):
+   READ: bw=55.0MiB/s (57.6MB/s), 27.5MiB/s-27.5MiB/s (28.8MB/s-28.8MB/s), io=1649MiB (1729MB), run=30001-30001msec
+```
+
+and also
+
+```sh
+ read: IOPS=7032, BW=27.5MiB/s (28.8MB/s)(824MiB/30001msec)
+```
+
+
+Import to check
+
+```sh
+err= 0
+```
+
+Takeaway:
+
+```
+Workload:
+  4K random read
+  2 jobs × QD32
+  30 seconds
+
+Result:
+  ~14K IOPS
+  55 MiB/s
+  ~4.55 ms average latency
+  ~6.0 ms P99 latency
+  ~8.36 ms P99.9 latency
+  ~27 ms P99.99 latency
+  0 I/O errors
+
+Device:
+  /dev/nvme0n1
+  NVMe utilization ~99%
+  Backed by LVM LV labvg-data
+  Mounted as XFS at /mnt/lvm-test
+```
+
+
+And run again:
+
+```
+sudo nvme smart-log /dev/nvme0
+sudo nvme error-log /dev/nvme0
+dmesg -T | grep -Ei 'nvme|pcie|aer|error|timeout|reset'
+```
+
+
+
+### Smartctl 
+
+Smartctl is worth learning too
+On modern systems you'll commonly use `nvme-cli` for NVMe-specific information, while `smartctl` is another useful interface.
+
+
+
+```
+degutos@centos:/mnt/xfs-test$ sudo smartctl -a /dev/nvme0
+smartctl 7.4 2023-08-01 r5530 [aarch64-linux-6.12.0-266.el10.aarch64] (local build)
+Copyright (C) 2002-23, Bruce Allen, Christian Franke, www.smartmontools.org
+
+=== START OF INFORMATION SECTION ===
+Model Number:                       ORCL-VBOX-NVME-VER12
+Serial Number:                      VB1234-56789
+Firmware Version:                   1.0
+PCI Vendor/Subsystem ID:            0x80ee
+IEEE OUI Identifier:                0x000000
+Controller ID:                      0
+NVMe Version:                       1.2
+Number of Namespaces:               2
+Local Time is:                      Mon Sep 14 06:34:19 2026 IST
+Firmware Updates (0x02):            1 Slot
+Warning  Comp. Temp. Threshold:     70 Celsius
+Critical Comp. Temp. Threshold:     70 Celsius
+
+Supported Power States
+St Op     Max   Active     Idle   RL RT WL WT  Ent_Lat  Ex_Lat
+ 0 +     0.01W       -        -    0  0  0  0        0       0
+
+=== START OF SMART DATA SECTION ===
+SMART overall-health self-assessment test result: PASSED
+
+SMART/Health Information (NVMe Log 0x02)
+Critical Warning:                   0x00
+Temperature:                        -
+Available Spare:                    0%
+Available Spare Threshold:          0%
+Percentage Used:                    0%
+Data Units Read:                    0
+Data Units Written:                 0
+Host Read Commands:                 0
+Host Write Commands:                0
+Controller Busy Time:               0
+Power Cycles:                       0
+Power On Hours:                     0
+Unsafe Shutdowns:                   0
+Media and Data Integrity Errors:    0
+Error Information Log Entries:      0
+Warning  Comp. Temperature Time:    0
+Critical Comp. Temperature Time:    0
+
+Error Information (NVMe Log 0x01, 1 of 1 entries)
+No Errors Logged
+
+Self-tests not supported
+
+degutos@centos:/mnt/xfs-test$
+```
+
+
+
+### IPMITOOL
+
+`ipmitool` talks to an IPMI/BMC interface. Your VirtualBox VM doesn't suddenly acquire a physical server BMC
+
+##### install
+
+```sh
+sudo dnf install ipmitool
+```
+
+On a physical server, the architecture is roughly:
+
+```
+Linux
+  │
+  ├── /dev/ipmi0
+  │       │
+  │       ↓
+  │     IPMI driver
+  │       │
+  │       ↓
+  │     BMC
+  │       │
+  │       ├── sensors
+  │       ├── chassis
+  │       ├── SEL/event log
+  │       └── hardware inventory
+  │
+  └── NVMe driver → NVMe SSD
+```
+
+
+VirtualBox VM looks more like:
+
+```
+Linux VM
+  │
+  ├── nvme driver → VirtualBox NVMe controller → virtual disk
+  │
+  └── /dev/ipmi0  ❌ doesn't exist
+```
+
+
+See, we don't have that:
+```sh
+degutos@centos:/mnt/xfs-test$ ls -l /dev/ipmi*
+ls: cannot access '/dev/ipmi*': No such file or directory
+```
+
+
+OR
+
+```sh
+degutos@centos:/mnt/xfs-test$ lsmod | grep ipmi
+degutos@centos:/mnt/xfs-test$
+
+degutos@centos:/mnt/xfs-test$ sudo dmesg | grep -i ipmi
+degutos@centos:/mnt/xfs-test$
+```
+
+
+```sh
+degutos@centos:/mnt/xfs-test$ sudo ipmitool mc info
+Could not open device at /dev/ipmi0 or /dev/ipmi/0 or /dev/ipmidev/0: No such file or directory
+
+degutos@centos:/mnt/xfs-test$ sudo ipmitool chassis status
+Could not open device at /dev/ipmi0 or /dev/ipmi/0 or /dev/ipmidev/0: No such file or directory
+```
+
+VirtualBox VM doesn't magically get a BMC just because you installed `ipmitool`.
+
+
+
+### LAB IPMI and Redfish
+
+
+#### VM2: bmc-lab
+-------------------
+
+CentOS Stream 9
+192.168.56.20
+
+        ┌──────────────────────────┐
+        │       BMC simulator      │
+        │                          │
+        │  OpenIPMI / ipmi_sim     │
+        │          │               │
+        │        IPMI              │
+        │                          │
+        │  DMTF Redfish Emulator   │
+        │          │               │
+        │       Redfish            │
+        └────────────┬─────────────┘
+                     │
+              Host-only network
+                     │
+              192.168.56.0/24
+      
+
+
+
+```sh
+sudo dnf install -y \
+    git \
+    python3 \
+    python3-pip \
+    python3-devel \
+    gcc \
+    make \
+    curl \
+    wget \
+    ipmitool \
+    OpenIPMI
+```
+
+
+Lets check versions:
+
+```sh
+degutos@centos:/mnt/xfs-test$ python3 --version
+Python 3.12.14
+
+degutos@centos:/mnt/xfs-test$ ipmitool -V
+ipmitool version 1.8.19
+```
+
+
+Also install:
+
+```sh
+ sudo dnf install -y OpenIPMI-lanserv
+```
+
+```sh
+degutos@centos:/mnt/xfs-test$ which ipmi_sim
+/usr/bin/ipmi_sim
+```
+
+
+See what config file we have:
+
+```sh
+degutos@centos:/mnt/xfs-test$ rpm -ql OpenIPMI-lanserv
+/etc/ipmi
+/etc/ipmi/ipmisim1.emu
+/etc/ipmi/lan.conf
+/usr/bin/ipmi_sim
+/usr/bin/ipmilan
+/usr/bin/sdrcomp
+/usr/lib/.build-id
+/usr/lib/.build-id/17
+/usr/lib/.build-id/17/f534011ec65247588d80f9fe3c9c0f24a41418
+/usr/lib/.build-id/3e
+/usr/lib/.build-id/3e/46b338e80c7df530ba129bea9713b7d3b7e187
+/usr/lib/.build-id/ae
+/usr/lib/.build-id/ae/7b685abc108f8e2515078767b2dcc07ceb38a9
+/usr/lib/.build-id/db/82ce8e63ce9781281ee50f071a9ac96c7e1fa9
+/usr/lib64/libIPMIlanserv.so.0
+/usr/lib64/libIPMIlanserv.so.0.0.1
+/usr/share/man/man1/ipmi_sim.1.gz
+/usr/share/man/man5/ipmi_lan.5.gz
+/usr/share/man/man5/ipmi_sim_cmd.5.gz
+/usr/share/man/man8/ipmilan.8.gz
+```
+
+
+```sh
+degutos@centos:/mnt/xfs-test$ rpm -ql OpenIPMI-lanserv | grep -E '/(lan|sim|emu|conf|examples?)|ipmi_sim'
+/etc/ipmi/lan.conf
+/usr/bin/ipmi_sim
+/usr/share/man/man1/ipmi_sim.1.gz
+/usr/share/man/man5/ipmi_sim_cmd.5.gz
+```
 
