@@ -255,3 +255,134 @@ nothing to commit, working tree clean
 
 
 
+### Git log
+
+```sh
+ ➜  git log
+commit 049529b2a94a9ed396ca05d22e4619b44c9551ce (HEAD -> master)
+Author: sarah <sarah@example.com>
+Date:   Fri Sep 25 11:02:02 2026 +0000
+
+    Added the lion and mouse story
+```
+
+
+
+Check which file is changed in the commit
+
+```sh
+➜  git log --name-only
+commit 049529b2a94a9ed396ca05d22e4619b44c9551ce (HEAD -> master)
+Author: sarah <sarah@example.com>
+Date:   Fri Sep 25 11:02:02 2026 +0000
+
+    Added the lion and mouse story
+
+lion-and-mouse.txt
+```
+
+
+checking again logs when more commits done:
+
+```sh
+➜  git log --name-only
+commit 9ceabfb55c7cd8c53913aca145140907af951616 (HEAD -> master)
+Author: tom <tom@example.com>
+Date:   Fri Sep 25 11:06:03 2026 +0000
+
+    Added a new story
+
+frogs-and-ox.txt
+
+commit 049529b2a94a9ed396ca05d22e4619b44c9551ce
+Author: sarah <sarah@example.com>
+Date:   Fri Sep 25 11:02:02 2026 +0000
+
+    Added the lion and mouse story
+
+lion-and-mouse.txt
+```
+
+
+
+Get the logs in one line:
+
+```sh
+ ➜  git log --oneline
+9ceabfb (HEAD -> master) Added a new story
+049529b Added the lion and mouse story
+```
+
+
+To get the last 3 commits logs:
+
+```sh
+sarah@dev01 learning-app-ecommerce on  master [⇡] via 🐘 ✖ git log -3
+commit 5ac38555429ffa6217cc32ee52ff000904335217 (HEAD -> master)
+Author: tej <tej@example.com>
+Date:   Fri Sep 25 10:59:32 2026 +0000
+
+    Update color from red to green
+
+commit d66bf77e8aa8fe59cf1a3d4f3464be7c492e5d87
+Author: sarah <sarah@example.com>
+Date:   Fri Sep 25 10:59:32 2026 +0000
+
+    Add instructions to verify application
+
+commit f6737e393f10848e157551a4fec29c70515d10f7
+Author: max <max@example.com>
+Date:   Fri Sep 25 10:59:32 2026 +0000
+
+    Increase interval time to 500
+```
+
+
+
+Check the last 5 commit logs and files changed with --name-only
+
+```sh
+➜  git log -5 --name-only
+commit 5ac38555429ffa6217cc32ee52ff000904335217 (HEAD -> master)
+Author: tej <tej@example.com>
+Date:   Fri Sep 25 10:59:32 2026 +0000
+
+    Update color from red to green
+
+css/style.css
+
+commit d66bf77e8aa8fe59cf1a3d4f3464be7c492e5d87
+Author: sarah <sarah@example.com>
+Date:   Fri Sep 25 10:59:32 2026 +0000
+
+    Add instructions to verify application
+
+README.md
+
+commit f6737e393f10848e157551a4fec29c70515d10f7
+Author: max <max@example.com>
+Date:   Fri Sep 25 10:59:32 2026 +0000
+
+    Increase interval time to 500
+
+js/theme.js
+
+commit e01753fd80bb5efe5c1117bb1e487e7a779fa6a3 (origin/master, origin/HEAD)
+Merge: 763e2c5 d0a698d
+Author: Mumshad Mannambeth <2704615+mmumshad@users.noreply.github.com>
+Date:   Thu Aug 1 22:58:51 2024 +0800
+
+    Merge pull request #21 from nimeshmora/update-readme-guide-setting-up-env-file-and-fetch
+    
+    update readme file on guiding how to setup env file and fetch environment details
+
+commit d0a698d482838f0397cd5ed6031875cac1d831f4
+Author: nimesha <mhnimesh@gmail.com>
+Date:   Thu Aug 1 19:26:01 2024 +0530
+
+    update readme file on guiding how to setup env file and fetch details from it within the index.php
+
+README.md
+```
+
+

@@ -135,3 +135,16 @@ Filter out the lines that contain any word that starts with a `capital` letter
 $ egrep -w '[A-Z][a-z]{2}' /etc/nsswitch.conf > /home/bob/filtered1 
 ```
 
+
+
+
+## Enabling 
+
+Eventually your SSH connection terminal is getting error for example when you run "clear" or CTRL+L or your terminal color is not nice. Quick workaround is:
+
+
+```sh
+TERM=xterm-256color ssh user@vm
+```
+
+
