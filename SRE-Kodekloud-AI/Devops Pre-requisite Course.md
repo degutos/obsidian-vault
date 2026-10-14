@@ -540,3 +540,293 @@ Removed:
 
 Complete!
 ```
+
+
+
+## Services
+
+
+```sh
+systemctl status ansible
+systemctl start ansible
+systemctl stop httpd
+systemctl enable httpd
+systemctl disable ansible
+```
+
+
+### How to configure a new service
+
+
+```sh
+/usr/bin/python3 /opt/code/my_app.py
+curl https:/localhost:5000
+```
+
+
+```sh
+systemctl start my_app
+systemctl stop my_app
+```
+
+/etc/systemd/system
+
+my_app.service
+```sh
+[Unit]
+Description=My Python web application
+
+[service]
+ExecStart=/usr/bin/python3 /opt/code/my_app.py
+
+[Install]
+WantedBy=multi-user.target
+```
+
+
+```sh
+systemctl daemon-reload # to reload the systemctl damnon 
+```
+
+
+someservices will run in 
+/lib/systemd/system/docker.service
+
+
+#### Services Lab
+
+Check the service status
+
+```sh
+thor@host01 ~$ systemctl status httpd
+○ httpd.service - The Apache HTTP Server
+     Loaded: loaded (/usr/lib/systemd/system/httpd.service; disabled; preset: di>
+     Active: inactive (dead)
+       Docs: man:httpd.service(8)
+```
+
+
+
+Lets start a service
+
+```sh
+thor@host01 ~$ sudo systemctl start httpd 
+thor@host01 ~$ 
+```
+
+
+Lets check the status again
+
+```sh
+thor@host01 ~$ systemctl status httpd
+● httpd.service - The Apache HTTP Server
+     Loaded: loaded (/usr/lib/systemd/system/httpd.service; disabled; preset: di>
+     Active: active (running) since Mon 2026-10-12 19:06:27 UTC; 44s ago
+       Docs: man:httpd.service(8)
+   Main PID: 4168 (httpd)
+     Status: "Total requests: 0; Idle/Busy workers 100/0;Requests/sec: 0; Bytes >
+      Tasks: 177 (limit: 411463)
+     Memory: 15.1M (peak: 16.8M)
+        CPU: 645ms
+     CGroup: /system.slice/httpd.service
+             ├─4168 /usr/sbin/httpd -DFOREGROUND
+             ├─4175 /usr/sbin/httpd -DFOREGROUND
+             ├─4176 /usr/sbin/httpd -DFOREGROUND
+             ├─4177 /usr/sbin/httpd -DFOREGROUND
+             └─4178 /usr/sbin/httpd -DFOREGROUND
+
+Oct 12 19:06:27 host01 httpd[4168]: AH00558: httpd: Could not reliably determine>
+Oct 12 19:06:27 host01 httpd[4168]: Server configured, listening on: port 80
+```
+
+
+
+Lets enable service
+
+```sh
+thor@host01 ~$ sudo systemctl enable httpd
+Created symlink /etc/systemd/system/multi-user.target.wants/httpd.service → /usr/lib/systemd/system/httpd.service.
+```
+
+
+Lets stop a service
+
+```sh
+thor@host01 ~$ sudo systemctl stop httpd
+thor@host01 ~$ 
+```
+
+Lets disable a service
+
+```sh
+thor@host01 ~$ sudo systemctl disable httpd
+Removed "/etc/systemd/system/multi-user.target.wants/httpd.service".
+```
+
+
+Lets now check the status
+
+```sh
+thor@host01 /usr/lib/systemd$ systemctl status app
+○ app.service - My python web application
+     Loaded: loaded (/usr/lib/systemd/system/app.service; disabled; preset: disa>
+     Active: inactive (dead)
+```
+
+
+## Networking
+
+
+### Checking the network link or interfaces available 
+
+```sh
+degutos@centos:~$ ip link
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: enp0s8: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP mode DEFAULT group default qlen 1000
+    link/ether 08:00:27:aa:bb:bc brd ff:ff:ff:ff:ff:ff
+    altname enx080027aabbbc
+```
+
+
+### Checking IP - Nice way
+
+```sh
+degutos@centos:~$ ip -br -c a
+lo               UNKNOWN        127.0.0.1/8 ::1/128
+enp0s8           UP             192.168.68.84/22 fe80::a00:27ff:feaa:bbbc/64
+```
+
+Normal way:
+
+```sh
+degutos@centos:~$ ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host noprefixroute
+       valid_lft forever preferred_lft forever
+2: enp0s8: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether 08:00:27:aa:bb:bc brd ff:ff:ff:ff:ff:ff
+    altname enx080027aabbbc
+    inet 192.168.68.84/22 brd 192.168.71.255 scope global dynamic noprefixroute enp0s8
+       valid_lft 6496sec preferred_lft 6496sec
+    inet6 fe80::a00:27ff:feaa:bbbc/64 scope link noprefixroute
+       valid_lft forever preferred_lft forever
+```
+
+
+### Checking external public IP
+
+```sh
+degutos@centos:~$ curl ifconfig.me
+51.37.140.240
+```
+
+
+### Configuring IP to an interface
+
+
+```sh
+sudo ip addr add 192.168.1.10/24 dev enp0s8
+```
+
+
+Lets Add second IP to an interface:
+
+```sh
+sudo ip addr add 192.168.1.10/24 dev enp0s8:1
+```
+
+Lets now check the IP just configured:
+
+```sh
+degutos@centos:~$ ip -br -c a
+lo               UNKNOWN        127.0.0.1/8 ::1/128
+enp0s8           UP             192.168.68.84/22 192.168.1.10/24 fe80::a00:27ff:feaa:bbbc/64
+```
+
+==🔴Notice== that you have enp0s8 interface with 2 IPs configured 
+
+or we can also check with just `ip a`
+
+```sh
+2: enp0s8: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether 08:00:27:aa:bb:bc brd ff:ff:ff:ff:ff:ff
+    altname enx080027aabbbc
+    inet 192.168.68.84/22 brd 192.168.71.255 scope global dynamic noprefixroute enp0s8
+       valid_lft 6367sec preferred_lft 6367sec
+    inet 192.168.1.10/24 scope global enp0s8
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a00:27ff:feaa:bbbc/64 scope link noprefixroute
+       valid_lft forever preferred_lft forever
+```
+
+
+Lets now ping the new IP address configured:
+
+```sh
+degutos@centos:~$ ping -c3 192.168.1.10
+PING 192.168.1.10 (192.168.1.10) 56(84) bytes of data.
+64 bytes from 192.168.1.10: icmp_seq=1 ttl=64 time=0.046 ms
+64 bytes from 192.168.1.10: icmp_seq=2 ttl=64 time=0.049 ms
+64 bytes from 192.168.1.10: icmp_seq=3 ttl=64 time=0.035 ms
+
+--- 192.168.1.10 ping statistics ---
+3 packets transmitted, 3 received, 0% packet loss, time 2000ms
+rtt min/avg/max/mdev = 0.035/0.043/0.049/0.006 ms
+```
+
+
+### Removing an IP address 
+
+```sh
+degutos@centos:~$ sudo ip addr del 192.168.1.10/24 dev enp0s8:1
+degutos@centos:~$ ip -br -c a
+lo               UNKNOWN        127.0.0.1/8 ::1/128
+enp0s8           UP             192.168.68.84/22 fe80::a00:27ff:feaa:bbbc/64
+```
+
+Notice that we don't have the ip .1.10 anymore.
+
+### Default gateway - route
+
+
+```sh
+degutos@centos:~$ route
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+default         _gateway        0.0.0.0         UG    100    0        0 enp0s8
+192.168.68.0    0.0.0.0         255.255.252.0   U     100    0        0
+```
+
+
+### Adding a route 
+
+
+```sh
+degutos@centos:~$ sudo ip route add 192.168.5.0/24 via 192.168.1.1
+
+degutos@centos:~$ route
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+default         _gateway        0.0.0.0         UG    100    0        0 enp0s8
+192.168.1.0     0.0.0.0         255.255.255.0   U     0      0        0 enp0s8
+192.168.5.0     www.adsl.vf     255.255.255.0   UG    0      0        0 enp0s8
+192.168.68.0    0.0.0.0         255.255.252.0   U     100    0        0 enp0s8
+```
+
+Here we are basically saying to reach network 192.168.5.0 use the gateway IP 192.168.1.1
+
+
+### Adding a default routing 
+
+```sh
+ip route add default via 192.168.1.1
+```
+
+This will redirect any traffic to the default route 
+
+
+
